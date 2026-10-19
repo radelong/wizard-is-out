@@ -1,0 +1,1933 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Wizard Is Out</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,600;1,400&family=VT323&display=swap">
+<style>
+/* Layout: one-screen candlelit terminal. Status strip, scrolling transcript, prompt, quick-command chips. Single committed dark look. */
+:root{
+  --bg:#130f16;
+  --panel:#1b1520;
+  --line:#3a2d40;
+  --text:#e9c27c;
+  --dim:#94798a;
+  --hi:#fde6b8;
+  --alert:#ff7d6b;
+  --arcane:#8fe3c6;
+  --glow:0 0 8px rgba(233,194,124,.28);
+  --display:"VT323","Courier New",monospace;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+html{height:100%;box-sizing:border-box}
+*,*::before,*::after{box-sizing:inherit}
+body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:var(--mono);font-size:15px;line-height:1.55}
+.app{height:100%;max-width:960px;margin:0 auto;display:flex;flex-direction:column;gap:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px}
+
+.bar{display:flex;flex-direction:column;align-items:stretch;gap:10px;border-bottom:1px solid var(--line);padding-bottom:10px}
+.brand{font-family:var(--display);font-size:2rem;line-height:.85;letter-spacing:.05em;color:var(--hi);text-shadow:var(--glow);text-transform:uppercase}
+.brand small{display:block;font-family:var(--mono);font-size:.6rem;letter-spacing:.2em;color:var(--dim);text-shadow:none;margin-top:6px}
+.stats{min-width:0;margin:0;display:grid;grid-template-columns:repeat(6,auto);justify-content:space-between;gap:4px 18px}
+.stats div{min-width:0}
+.stats dt{font-size:.64rem;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+.stats dd{margin:0;font-family:var(--display);font-size:1.4rem;line-height:1.1;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.stats dd.hot{color:var(--alert)}
+.stats dd.good{color:var(--arcane)}
+.meter{display:flex;gap:2px;align-items:center;height:1.54rem}
+.meter i{display:block;width:7px;height:13px;background:var(--line)}
+.meter.wide i{width:22px}
+.meter i.on{background:var(--arcane);box-shadow:0 0 6px rgba(143,227,198,.45)}
+.meter.hot i.on{background:var(--alert);box-shadow:0 0 6px rgba(255,125,107,.45)}
+@media (max-width:760px){
+  .stats{grid-template-columns:repeat(3,minmax(0,1fr));justify-content:stretch}
+}
+
+.screen{flex:1;min-height:0;position:relative;border:1px solid var(--line);border-radius:4px;background:var(--panel);overflow:hidden}
+.screen::after{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(to bottom,transparent 0 2px,rgba(0,0,0,.14) 2px 3px),radial-gradient(ellipse at center,transparent 60%,rgba(0,0,0,.38) 100%)}
+.log{position:absolute;inset:0;overflow-y:auto;padding:18px 20px 24px;display:flex;flex-direction:column;gap:10px;text-shadow:var(--glow)}
+.line{flex-shrink:0;margin:0;max-width:72ch;white-space:pre-wrap;overflow-wrap:anywhere}
+.line.echo{color:var(--dim);margin-top:8px;text-shadow:none}
+.line.title{font-family:var(--display);font-size:clamp(2.6rem,10vw,4.4rem);line-height:.85;letter-spacing:.05em;color:var(--hi)}
+.line.act{font-family:var(--display);font-size:clamp(2rem,7vw,3rem);line-height:.9;letter-spacing:.05em;text-transform:uppercase;color:var(--arcane);margin-top:18px;padding-top:14px;border-top:1px dashed var(--line);text-shadow:0 0 10px rgba(143,227,198,.35)}
+.line.sub{color:var(--dim);font-style:italic;text-shadow:none}
+.line.room{font-family:var(--display);font-size:1.8rem;line-height:1;letter-spacing:.05em;text-transform:uppercase;color:var(--hi);margin-top:4px}
+.line.code,.line.map{max-width:100%;white-space:pre;overflow-x:auto;overflow-wrap:normal;font-size:.86rem;color:var(--hi);border-left:2px solid var(--dim);padding:2px 0 2px 12px}
+.line.sys{color:var(--dim);text-shadow:none}
+.line.voice{color:var(--arcane);font-style:italic;text-shadow:0 0 8px rgba(143,227,198,.3)}
+.line.npc{color:var(--hi)}
+.line.warn{color:var(--alert);text-shadow:0 0 8px rgba(255,125,107,.3)}
+.line.pts{color:var(--arcane);font-size:.74rem;letter-spacing:.16em;text-transform:uppercase;text-shadow:none}
+.line.ending{font-family:var(--display);font-size:2.3rem;line-height:1;color:var(--hi);margin-top:6px}
+@media (prefers-reduced-motion:no-preference){
+  .line{animation:in .18s ease-out}
+  @keyframes in{from{opacity:.25}to{opacity:1}}
+}
+
+.prompt{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:4px;background:var(--panel);padding:6px 8px 6px 12px}
+.prompt:focus-within{border-color:var(--dim)}
+.ps{font-family:var(--display);font-size:1.4rem;color:var(--hi);text-shadow:var(--glow)}
+.prompt input{flex:1;min-width:0;background:transparent;border:0;outline:none;color:var(--hi);caret-color:var(--text);font-family:var(--mono);font-size:16px;padding:6px 0}
+.prompt input::placeholder{color:var(--dim);opacity:.8}
+.prompt button,.chips button{font:inherit;cursor:pointer;background:transparent;color:var(--text);border:1px solid var(--line);border-radius:3px}
+.prompt button{font-family:var(--display);font-size:1.15rem;letter-spacing:.08em;text-transform:uppercase;padding:2px 14px;border-color:var(--dim)}
+.prompt button:hover{background:var(--text);color:var(--bg)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips button{font-size:.74rem;letter-spacing:.12em;text-transform:uppercase;padding:6px 11px}
+.chips button:hover{border-color:var(--text);color:var(--hi)}
+.chips .dir{min-width:2.4rem}
+button:focus-visible{outline:2px solid var(--text);outline-offset:2px}
+</style>
+<style>[hidden]{display:none!important}</style>
+</head>
+<body>
+<div class="app">
+  <header class="bar">
+    <div class="brand">The Wizard Is Out<small>A TEXT ADVENTURE IN FOUR ACTS OF POOR HOUSE-SITTING</small></div>
+    <dl class="stats">
+      <div><dt>Act</dt><dd id="st-act">I</dd></div>
+      <div><dt>Location</dt><dd id="st-loc">Study</dd></div>
+      <div><dt>Time</dt><dd id="st-time">Fri 22:00</dd></div>
+      <div><dt>Objective</dt><dd id="st-obj" class="hot">Circle broken</dd></div>
+      <div><dt id="st-meter-label">Portal</dt><dd><span class="meter" id="st-meter" role="img" aria-label="Portal 0 percent open"></span></dd></div>
+      <div><dt>Score</dt><dd id="st-score">0/400</dd></div>
+    </dl>
+  </header>
+
+  <main class="screen">
+    <div id="log" class="log" role="log" aria-live="polite"></div>
+  </main>
+
+  <form id="cmd" class="prompt" autocomplete="off">
+    <label for="cmd-input" class="ps">&gt;</label>
+    <input id="cmd-input" name="cmd-input" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Try: look at circle">
+    <button type="submit">Enter</button>
+  </form>
+
+  <nav class="chips" aria-label="Quick commands">
+    <button type="button" data-cmd="look">Look</button>
+    <button type="button" data-cmd="inventory">Inventory</button>
+    <button type="button" data-cmd="map">Map</button>
+    <button type="button" class="dir" data-cmd="n">N</button>
+    <button type="button" class="dir" data-cmd="s">S</button>
+    <button type="button" class="dir" data-cmd="e">E</button>
+    <button type="button" class="dir" data-cmd="w">W</button>
+    <button type="button" data-cmd="wait">Wait</button>
+    <button type="button" data-cmd="hint">Hint</button>
+    <button type="button" data-cmd="help">Help</button>
+  </nav>
+</div>
+
+<script>
+(function(){
+"use strict";
+const HAS_DOM = typeof document !== "undefined";
+const SAVE_KEY = "wizard-is-out-save-v2";
+const NAME = "gerald";
+const ROMAN = {1:"I",2:"II",3:"III",4:"IV"};
+const ACTS = {
+  1:{title:"Act I: The Coaster Incident", day:"Fri", start:22*60, doom:60, meter:"Portal"},
+  2:{title:"Act II: The Intern",          day:"Sat", start:16*60, doom:60, meter:"Chalk"},
+  3:{title:"Act III: Mother",             day:"Sun", start:11*60, doom:60, meter:"Suspicion"},
+  4:{title:"Act IV: Small Claims",        day:"Mon", start:8*60,  doom:30, meter:"Hearing"}
+};
+const PIP_ROUTE = ["study","library","study","greenhouse","study","kitchen","study","foyer","bathroom","foyer"];
+
+let S;
+let checkpoint = null;
+let buffer = [];
+function say(t, cls){ buffer.push({t:String(t), cls:cls||""}); }
+function clone(o){ return JSON.parse(JSON.stringify(o)); }
+
+/* ================= world ================= */
+function itemsFor(n){
+  const b = {mug:null,note:null,spellbook:"study",portalbook:"library",candle:null,matches:null,opener:"drawer",tin:null,jar:null,
+    salt:null,earmuffs:"foyer",root:null,chopstick:"stand",bestiary:null,fudge:null,kettle:null,lanyard:null,teapot:null,tea:null,
+    nottea:null,saucepan:null,rug:null,summons:null,contract:null,quill:null,paper:null};
+  if(n===1) Object.assign(b,{mug:"study",note:"study",candle:"library",matches:"drawer",tin:"pantry",jar:"fridge"});
+  if(n===2) Object.assign(b,{candle:"inv",matches:"inv",bestiary:"library",kettle:"kitchen",lanyard:"bathroom"});
+  if(n===3) Object.assign(b,{candle:"inv",matches:"inv",bestiary:"library",teapot:"pantry",tea:"pantry",nottea:"pantry",saucepan:"drawer",rug:"foyer",jar:S.g.ateJar?null:"fridge"});
+  if(n===4) Object.assign(b,{candle:"inv",matches:"inv",bestiary:"library",summons:"inv",contract:"safe",quill:"study",paper:"study",earmuffs:null});
+  return b;
+}
+function flagsFor(n){
+  const f={scored:{}, huh:0, catTalks:0, mirrorTalks:0, npcTalks:0, candleLit:false, drawerOpen:false, pantryOpen:false, fridgeOpen:false, medOpen:false, wearing:false};
+  if(n===1) Object.assign(f,{mugMoved:false,tinOpen:false,catFed:false,knowsName:false,readSpell:false,knowsRitual:false,rootTaken:false,saltDone:false,rootPlaced:false,closed:false});
+  if(n===2) Object.assign(f,{readBestiary:false,fudgeFound:false,fudge:0,kettleBaited:false,pipInKettle:false,pipCaught:false,pipRoom:"study",pipStep:0,readLanyard:false,cliveAsk:false,sent:false});
+  if(n===3) Object.assign(f,{stage:0,finish:0,momRoom:"kitchen",catRoom:"library",catConvinced:false,leaves:null,brewed:false,src:null,panHot:false,rugOnCircle:false,susp:0,complimented:false,earmuffWarned:false,done:false});
+  if(n===4) Object.assign(f,{readSummons:false,safeFound:false,safeOpen:false,readContract:false,triplicate:false,agreement:false,catSigned:false,catRoom:"kitchen",hearing:false,hstage:0,strikes:0});
+  return f;
+}
+function startRoom(n){ return n===3 ? "foyer" : "study"; }
+
+const ITEMS = {
+  mug:{name:"your coffee mug", aliases:["coffee mug","mug","cup","coaster"]},
+  note:{name:"a note from the wizard", aliases:["wizard's note","note","letter","instructions"]},
+  spellbook:{name:"the wizard's spellbook", aliases:["spellbook","spell book","grimoire","tome","big book"]},
+  portalbook:{name:"a book titled PORTALS: A CAUTIONARY TALE", aliases:["portals a cautionary tale","cautionary tale","portals book","portal book","book"]},
+  candle:{name:"a candle", aliases:["candle","taper","wax"]},
+  matches:{name:"a box of matches", aliases:["matches","matchbox","box of matches","match"]},
+  opener:{name:"a tin opener", aliases:["tin opener","can opener","opener"]},
+  tin:{name:"a tin of sardines", aliases:["tin of sardines","sardines","tin","fish"]},
+  jar:{name:"a jar marked NOT OLIVES", aliases:["not olives","jar","olives","pickled eyes"]},
+  salt:{name:"a bag of warding salt", aliases:["bag of salt","warding salt","salt"]},
+  earmuffs:{name:"a pair of earmuffs", aliases:["ear muffs","earmuffs","muffs"]},
+  root:{name:"a mandrake root", aliases:["mandrake root","root"]},
+  chopstick:{name:"a wand", aliases:["wand","chopstick","stick"]},
+  bestiary:{name:"a bestiary", aliases:["bestiary","beast book","book of beasts","monster book"]},
+  fudge:{name:()=> S.f.fudge>1 ? S.f.fudge+" squares of emergency fudge" : "a square of emergency fudge", aliases:["emergency fudge","fudge","chocolate","sweets","candy","sweet"]},
+  kettle:{name:()=> S.f.pipCaught ? "the kettle (rattling, with an imp in it)" : S.f.kettleBaited ? "the cast-iron kettle (baited with fudge)" : "the cast-iron kettle", aliases:["cast iron kettle","iron kettle","kettle","lid","trap"]},
+  lanyard:{name:"a tiny lanyard", aliases:["lanyard","id badge","badge","id","tag","card"]},
+  teapot:{name:()=> S.f.brewed ? "the good teapot (full of tea)" : S.f.leaves ? "the good teapot (leaves in, no water)" : "the good teapot", aliases:["good teapot","teapot","tea pot"]},
+  tea:{name:"a tin of tea", aliases:["tin of tea","tea tin","tea leaves","leaves","tea","tin"]},
+  nottea:{name:"a tin marked NOT TEA", aliases:["tin marked not tea","not tea"]},
+  saucepan:{name:"a saucepan", aliases:["saucepan","pan","water"]},
+  rug:{name:"a hall rug", aliases:["hall rug","rug","runner","carpet"]},
+  summons:{name:"a court summons", aliases:["court summons","summons","envelope","letter"]},
+  contract:{name:()=> S.f.triplicate ? "Gerald's contract (in triplicate)" : "Gerald's contract", aliases:["soul contract","gerald's contract","contract","scroll","copies","parchment"]},
+  quill:{name:"a quill", aliases:["quill","pen","feather","ink"]},
+  paper:{name:()=> S.f.agreement ? (S.f.catSigned ? "the sardine agreement (signed)" : "the sardine agreement (unsigned)") : "a sheet of paper", aliases:["sardine agreement","agreement","paper","sheet","letterhead"]}
+};
+
+const catRoomFn = ()=> (S.act===3||S.act===4) ? S.f.catRoom : "kitchen";
+const FIX = {
+  circle:{room:"study", aliases:["summoning circle","chalk circle","circle","ring","portal","gap","glow","floor","chalk"]},
+  desk:{room:"study", aliases:["desk"]},
+  armchair:{room:"study", aliases:["armchair","chair"]},
+  fireplace:{room:"study", aliases:["fireplace","fire","hearth","ashes","chimney"]},
+  portrait:{room:"study", aliases:["portrait","painting","picture","wizard","mordrath"]},
+  safe:{room:"study", acts:[4], cond:()=>S.f.safeFound, aliases:["iron safe","safe","grille"]},
+  judge:{room:"study", acts:[4], cond:()=>S.f.hearing, aliases:["judge mabel","judge","mabel","toad","court","bench"]},
+  xal:{room:"study", acts:[4], cond:()=>S.f.hearing, aliases:["xal'thuun","xalthuun","xal thuun","demon","accountant","plaintiff"]},
+  bailiff:{room:"study", acts:[4], cond:()=>S.f.hearing, aliases:["bailiff","gargoyle"]},
+  cat:{room:catRoomFn, aliases:["bartholomew","barty","cat","familiar","kitty","him"]},
+  pip:{room:()=>S.f.pipRoom, acts:[2], cond:()=>!S.f.pipCaught, aliases:["pip","imp","intern","little demon"]},
+  mother:{room:()=>S.f.momRoom, acts:[3], cond:()=>!S.f.done, aliases:["mrs pennywhistle","pennywhistle","gerald's mother","mother","mum","mom","her","lady","woman","hat","pheasant"]},
+  fridge:{room:"kitchen", aliases:["fridge","refrigerator","icebox"]},
+  pantry:{room:"kitchen", aliases:["pantry","cupboard","larder"]},
+  drawer:{room:"kitchen", aliases:["kitchen drawer","drawer","drawers"]},
+  stove:{room:"kitchen", aliases:["stove","oven","hob"]},
+  oldkettle:{room:"kitchen", acts:[1], aliases:["kettle"]},
+  bowl:{room:"kitchen", aliases:["cat bowl","bowl","dish"]},
+  spices:{room:"kitchen", aliases:["spice rack","spices"]},
+  stairs:{room:"kitchen", aliases:["stairs","cellar stairs","steps"]},
+  shelves:{room:"library", aliases:["bookshelves","shelves","shelf","books","top shelf"]},
+  readingdesk:{room:"library", aliases:["reading desk","lectern","table","lamp"]},
+  ladder:{room:"library", aliases:["ladder","rolling ladder"]},
+  mandrake:{room:"greenhouse", aliases:["mandrake","pot","clay pot"]},
+  flytrap:{room:"greenhouse", aliases:["venus flytrap","flytrap","plants","plant"]},
+  wateringcan:{room:"greenhouse", aliases:["watering can","can"]},
+  rack:{room:"foyer", aliases:["coat rack","rack","hooks","coats"]},
+  frontdoor:{room:"foyer", aliases:["front door","door","runes"]},
+  stand:{room:"foyer", aliases:["umbrella stand","stand"]},
+  mailslot:{room:"foyer", aliases:["mail slot","slot","mail","brochure"]},
+  mirror:{room:"bathroom", aliases:["magic mirror","mirror"]},
+  tub:{room:"bathroom", aliases:["bathtub","tub","bath","newt"]},
+  medcab:{room:"bathroom", aliases:["medicine cabinet","cabinet"]},
+  sacks:{room:"cellar", aliases:["salt sacks","sacks","sack","burlap"]},
+  winerack:{room:"cellar", aliases:["wine rack","wine","bottles"]},
+  furnace:{room:"cellar", aliases:["furnace","boiler","clive","fire elemental","elemental","voice","grate"]}
+};
+const ALL = Object.keys(ITEMS).concat(Object.keys(FIX));
+const CROOM = {drawer:"kitchen", pantry:"kitchen", fridge:"kitchen", stand:"foyer", safe:"study"};
+const CNAME = {drawer:"the drawer", pantry:"the pantry", fridge:"the fridge", stand:"the umbrella stand", safe:"the safe"};
+
+/* ================= helpers ================= */
+function A(){ return ACTS[S.act]; }
+function clock(t){ const m=(A().start + (t===undefined?S.turn:t)*2) % 1440; return String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0"); }
+function has(i){ return S.items[i]==="inv"; }
+function cap(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
+function iname(i){ const n=ITEMS[i].name; return typeof n==="function" ? n() : n; }
+function list(ids){
+  const n=ids.map(iname);
+  if(n.length<2) return n.join("");
+  return n.slice(0,-1).join(", ")+" and "+n[n.length-1];
+}
+function fixRoom(id){ const r=FIX[id].room; return typeof r==="function" ? r() : r; }
+function fixActive(id){
+  const fx=FIX[id];
+  if(fx.acts && fx.acts.indexOf(S.act)<0) return false;
+  if(fx.cond && !fx.cond()) return false;
+  return true;
+}
+function isLit(){ return S.f.candleLit && (S.items.candle==="inv" || S.items.candle==="cellar"); }
+function isDark(){ return S.room==="cellar" && !isLit(); }
+function containerOpen(c){
+  if(c==="drawer") return S.f.drawerOpen;
+  if(c==="pantry") return S.f.pantryOpen;
+  if(c==="fridge") return S.f.fridgeOpen;
+  if(c==="stand") return true;
+  if(c==="safe") return S.act===4 && S.f.safeOpen;
+  return false;
+}
+function visible(){
+  const out=[], dark=isDark();
+  if(!dark) for(const id in FIX) if(fixActive(id) && fixRoom(id)===S.room) out.push(id);
+  for(const id in ITEMS){
+    const loc=S.items[id];
+    if(loc==="inv") out.push(id);
+    else if(dark) continue;
+    else if(loc===S.room) out.push(id);
+    else if(CROOM[loc]===S.room && containerOpen(loc)) out.push(id);
+  }
+  return out;
+}
+function isVisible(id){ return visible().indexOf(id)>=0; }
+function here(id){ return fixActive(id) && fixRoom(id)===S.room && !isDark(); }
+function esc(s){ return s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"); }
+function find(phrase, pool){
+  phrase=phrase.trim(); if(!phrase) return null;
+  let best=null, bl=0;
+  for(const id of pool){
+    for(const a of (ITEMS[id]||FIX[id]).aliases){
+      if(phrase===a) return id;
+      if(a.length>bl && new RegExp("(^|\\s)"+esc(a)+"($|\\s)").test(phrase)){ best=id; bl=a.length; }
+    }
+  }
+  return best;
+}
+function resolve(ph, quiet){
+  const id=find(ph, visible());
+  if(id) return id;
+  if(!quiet){
+    if(isDark()) say("You can't see a thing. That's sort of the defining feature of the dark.");
+    else if(find(ph, ALL)) say("You don't see that here.");
+    else say("There's no \""+ph.trim()+"\" here. You may be thinking of a different house.");
+  }
+  return null;
+}
+function contents(c, prefix, empty){
+  const ins=Object.keys(ITEMS).filter(i=>S.items[i]===c);
+  return ins.length ? prefix+list(ins)+"." : empty;
+}
+function award(key, pts, note){
+  if(S.f.scored[key]!==undefined) return;
+  S.f.scored[key]=pts; S.score+=pts;
+  say("+"+pts+" points"+(note?" · "+note:""), "pts");
+}
+function penalty(key, pts, note){
+  if(S.f.scored[key]!==undefined) return;
+  S.f.scored[key]=-pts; S.score-=pts;
+  say("−"+pts+" points"+(note?" · "+note:""), "warn");
+}
+function total(){ return Math.max(0, S.total + S.score); }
+function rank(t){
+  if(t>=380) return "Apprentice Material, Allegedly";
+  if(t>=300) return "Adequate, Per the Cat";
+  if(t>=200) return "House-Sitter of Last Resort";
+  if(t>=100) return "Liability";
+  return "Demon Snack";
+}
+function pct(){ const t=(S.act===2 && S.f.caughtAt!=null) ? S.f.caughtAt : S.turn; return Math.min(1, t/A().doom); }
+
+/* ================= rooms ================= */
+function glow(){
+  const p=pct();
+  if(S.f.closed) return "dark and entirely ordinary";
+  if(p<.25) return "a faint, disapproving violet";
+  if(p<.5) return "a steady violet, like a nightlight with opinions";
+  if(p<.75) return "a bright violet that throws your shadow up the walls";
+  return "a violet so bright it hums in your fillings";
+}
+function chalk(){
+  const p=pct();
+  if(S.f.sent) return "The extra chalk has faded to grey dust.";
+  if(p<.25) return "Someone has started a second ring around it in fresh chalk: a few neat lines, carefully measured.";
+  if(p<.5) return "A second chalk ring is about a third done, very neat, with tiny annotations in the margins.";
+  if(p<.75) return "The second chalk ring is more than half finished. Someone has labeled it DRAFT 2.";
+  return "The second chalk ring is almost complete, and it's glowing faintly at the joins.";
+}
+const ROOMS = {
+  study:{name:"The Study", exits:{n:"library",w:"greenhouse",e:"kitchen",s:"foyer"}, desc(){
+    const f=S.f, ex="\n\nThe library is north, the greenhouse is west, the kitchen is east, and the foyer is south.";
+    if(S.act===1){
+      let t="The wizard's study. A cluttered desk, an armchair molded to the shape of someone who reads a lot of footnotes, a cold fireplace, and a portrait of the wizard looking disappointed in advance. In the middle of the floor is a chalk summoning circle, glowing "+glow()+".";
+      if(!f.mugMoved) t+=" Your coffee mug sits squarely on the edge of the circle, where you put it down as a coaster about an hour ago.";
+      else if(!f.saltDone) t+=" There's a coffee-ring-shaped gap in the chalk line. You did that.";
+      else if(!f.rootPlaced) t+=" A fresh line of salt closes the gap. The circle hums, offended but whole.";
+      else t+=" The circle is whole, and a mandrake root sits at its center, sulking.";
+      return t+ex;
+    }
+    if(S.act===2) return "The study, the afternoon after. The fireplace is cold, the portrait is still disappointed, and the armchair now has a you-shaped dent in it. The circle you closed last night sits quiet in the middle of the floor, salt line intact, mandrake root in the center. "+chalk()+ex;
+    if(S.act===3) return "The study, tidied as much as you dared."+(f.rugOnCircle?" A hall rug lies in the middle of the floor, covering the circle completely. It looks deliberate, the way a person standing in front of a hole in the wall looks deliberate.":" The summoning circle is right there in the middle of the floor: chalk, a salt line, a mandrake root, and the remains of an imp's homework. Anyone who knows what they're looking at would know what they're looking at.")+ex;
+    let t="The study, Monday morning. The rug still covers the circle. The portrait of Mordrath looks down at you, disappointed, as is its job"+(f.safeFound?". It hangs open on a hinge, showing a small iron safe set into the wall.":", and it's hanging very slightly crooked.");
+    if(f.hearing) t+="\n\nThe room is larger than it should be. A bench of black stone has grown out of the floor where the desk was, Judge Mabel presides from the top of it, a gargoyle bailiff guards the fireplace, and Xal'thuun sits at a folding table with his clipboard, beaming.";
+    return t+(f.hearing?"\n\nCourt is in session. You're not going anywhere.":ex);
+  }},
+  kitchen:{name:"Kitchen", exits:{w:"study",s:"cellar"}, desc(){
+    const ex="\n\nThe study is west. Narrow stairs lead south and down to the cellar.";
+    if(S.act===1) return "A kitchen whose spice rack includes at least three things that are not spices. There's a fridge, a pantry, a drawer, and a stove with a kettle on it. Bartholomew, the wizard's cat, sits on the counter beside "+(S.f.catFed?"a licked-clean bowl, radiating something close to tolerance.":"an empty bowl, radiating grievance.")+ex;
+    if(S.act===2) return "The kitchen. A stove, a fridge, a pantry, and a drawer. Bartholomew sits on the counter washing a paw, pointedly not dealing with the intern situation."+ex;
+    if(S.act===3) return "The kitchen, scrubbed to a shine you didn't know it had. There's a fridge, a pantry, a drawer, and a stove with a bare ring where the kettle should be. You're hoping nobody notices the bare ring."+ex;
+    return "The kitchen. A fridge, a pantry, a drawer, and a kettle-less stove."+(S.f.catRoom==="kitchen"?" Bartholomew sits on the counter wearing your fluffy pink earmuffs, which he has not taken off since yesterday. He seems at peace.":"")+ex;
+  }},
+  library:{name:"Library", exits:{s:"study"}, desc(){
+    let t="Floor-to-ceiling shelves, a rolling ladder, and a reading desk. The books are organized by a system known only to the wizard and possibly the books. Several of them are chained shut, which is never a good sign in a library.";
+    if(S.act===2) t+=" One shelf has been reorganized by height, then by color, then by flavor, judging by the bite marks.";
+    if(S.act===3 && S.f.catRoom==="library") t+=" At the very top of the ladder, wedged on the highest shelf, two yellow eyes glare down at you. Bartholomew is hiding.";
+    return t+"\n\nThe study is south.";
+  }},
+  greenhouse:{name:"Greenhouse", exits:{e:"study"}, desc(){
+    if(S.act===1) return "Humid, green, and loud with the clicking of a Venus flytrap that has clearly been fed something larger than flies. On a bench sits a clay pot "+(S.f.rootTaken?"that is now empty, which you suspect it will hold against you.":"holding a mandrake, its leaves twitching like it's dreaming about screaming.")+" A watering can sits by the door.\n\nThe study is east.";
+    return "Humid and green. The clay pot that held the mandrake is empty and resentful. The Venus flytrap looks bigger than it did on Friday, and well fed. A watering can sits by the door.\n\nThe study is east.";
+  }},
+  foyer:{name:"Foyer", exits:{n:"study",w:"bathroom"}, desc(){
+    let t="A narrow entrance hall with a coat rack, an umbrella stand, a mail slot, and a heavy front door covered in runes.";
+    if(S.act===1) t+=" You don't read runes, but you get the gist, and the gist is NO.";
+    if(S.act===2) t+=" Tiny chalk footprints lead in every direction.";
+    if(S.act===3) t+=" The runes, which spent all weekend refusing to let you out, apparently consider mothers welcome at any hour.";
+    if(S.act===4) t+=" The runes are flickering nervously, like they've received a letter.";
+    return t+"\n\nThe study is north. The bathroom is west.";
+  }},
+  bathroom:{name:"Bathroom", exits:{e:"foyer"}, desc(){
+    let t="Black-and-white tile, a clawfoot tub, a medicine cabinet, and an ornate gilt mirror that watches you walk in with open contempt.";
+    if(S.act===2) t+=" The newt in the tub has company: a damp towel the size of a handkerchief and a puddle that smells like struck matches.";
+    return t+"\n\nThe foyer is east.";
+  }},
+  cellar:{name:"Cellar", exits:{n:"kitchen"}, desc(){
+    if(isDark()) return "It is pitch black. Something down here drips at irregular intervals, which is somehow worse than regular intervals.\n\nThe stairs lead back up, north.";
+    let t="Stone walls, a wine rack, a furnace ticking quietly to itself, and a row of burlap sacks stenciled SALT: FOR WARDING (NOT FOR FRIES). The candle makes the shadows move in ways shadows probably shouldn't.";
+    if(S.act>=2) t+=" Through the furnace grate, two coals blink at you. That's Clive. He lives there.";
+    return t+"\n\nThe stairs lead back up, north.";
+  }}
+};
+const ROOM_NAMES = {"study":"study","library":"library","kitchen":"kitchen","cellar":"cellar","basement":"cellar","greenhouse":"greenhouse","conservatory":"greenhouse","foyer":"foyer","hall":"foyer","entrance":"foyer","entryway":"foyer","bathroom":"bathroom","loo":"bathroom","toilet":"bathroom","restroom":"bathroom"};
+
+const PIP_DOING = {
+  study:"crouched by the circle drawing careful chalk lines, tongue between his teeth",
+  library:"reshelving books according to how they taste",
+  greenhouse:"arguing with the Venus flytrap and losing",
+  kitchen:"trying to open the fridge with a tiny crowbar",
+  foyer:"licking the runes on the front door to see what they taste like",
+  bathroom:"doing laps in the tub while the newt watches, unimpressed",
+  cellar:"warming his hands at the furnace and humming"
+};
+function npcLines(){
+  const f=S.f;
+  if(S.act===2 && here("pip")){
+    if(f.pipInKettle) say("Pip is in the kettle, eating fudge with both hands. The lid is right there.", "npc");
+    else say("Pip the imp is here, "+PIP_DOING[S.room]+".", "npc");
+  }
+  if(S.act===3 && here("mother")){
+    const st = f.stage===0 ? "sitting very upright, waiting for tea and noticing things" : f.stage===1 ? "sipping her tea and eyeing the study door" : "calling for Barty in a voice that could strip varnish";
+    say("Mrs. Pennywhistle is here, "+st+".", "npc");
+  }
+  if(S.act===3 && f.catConvinced && here("cat")) say("Bartholomew is here, wearing your pink earmuffs and an expression of profound sacrifice.", "npc");
+  if(S.act===4 && f.catRoom==="study" && here("cat")) say("Bartholomew sits on the edge of the bench, earmuffs on, looking bored by the entire legal system.", "npc");
+}
+function look(){
+  const r=ROOMS[S.room];
+  say(isDark()?"Cellar (dark)":r.name, "room");
+  say(r.desc());
+  if(isDark()) return;
+  const hereItems=Object.keys(ITEMS).filter(i=>S.items[i]===S.room && !(i==="mug" && S.act===1 && !S.f.mugMoved));
+  if(hereItems.length) say("You can see "+list(hereItems)+" here.");
+  for(const c in CROOM){
+    if(CROOM[c]!==S.room || !containerOpen(c)) continue;
+    const ins=Object.keys(ITEMS).filter(i=>S.items[i]===c);
+    if(ins.length) say(cap(CNAME[c])+" holds "+list(ins)+".");
+  }
+  npcLines();
+}
+
+/* ================= describing ================= */
+const NOTE_TEXT = "House-sitter,\n\n1. Feed Bartholomew at 8. He will lie and say you didn't.\n2. Water the mandrake. Do NOT pull it.\n3. Do NOT touch the circle in the study.\n4. Help yourself to the fridge, except the jar marked NOT OLIVES.\n\nBack Monday.\n  -M.\n\nP.S. If the circle starts glowing, consult the spellbook.\n     If the spellbook doesn't help, it's probably fine.";
+function describe(id){
+  const f=S.f, a=S.act;
+  switch(id){
+    case "mug": return "A mug that says WORLD'S OKAYEST HOUSE-SITTER. It was a gift. You're starting to think it was a warning."+(a===1&&!f.mugMoved?" It's sitting on the chalk line of the circle.":"");
+    case "note": return "The wizard's note, in purple ink.";
+    case "spellbook":
+      if(a===2 && !f.fudgeFound) return "The spellbook, the size of a paving slab. It feels lighter than it did on Friday, and when you tilt it, something shifts inside. You could OPEN it.";
+      return "A spellbook the size of a paving slab, bound in something you decide is leather."+(a===2?" Pages 200 to 260 are hollowed out. Of course they are.":" You could READ it.");
+    case "portalbook": return "PORTALS: A CAUTIONARY TALE. A loose page sticks out of it as a bookmark. You could READ it.";
+    case "candle": return "A fat beeswax candle. "+(f.candleLit?"It's lit, and the flame leans toward the study like it's curious.":"It's unlit.");
+    case "matches": return "A box of matches from a tavern called The Drowned Rat. Several are already used. The wizard does not tidy.";
+    case "opener": return "A tin opener. The only object in this house without a curse on it, as far as you can tell.";
+    case "tin": return "A tin of Sardines of Distinction. "+(f.tinOpen?"It's open, and it smells exactly as distinguished as you'd expect.":"It has no ring pull. Whoever designed it hated you specifically.");
+    case "jar": return "A jar marked NOT OLIVES in the wizard's handwriting. They look exactly like olives. They are looking back at you.";
+    case "salt": return "A bag of coarse grey warding salt. It's heavier than salt has any right to be.";
+    case "earmuffs": return "Fluffy pink earmuffs. On a man who calls himself Mordrath the Unyielding. You file this away.";
+    case "root": return "A mandrake root, roughly the shape of a small, furious man. It has stopped screaming and started glaring.";
+    case "chopstick": return "A wand. On closer inspection, a chopstick. On even closer inspection, a chopstick with ambitions.";
+    case "bestiary": return "A bestiary with a moth-eaten cover and a bookmark at I. You could READ it.";
+    case "fudge": return "The wizard's emergency fudge, wrapped in wax paper. "+(f.fudge>1?f.fudge+" squares left.":"One square left.")+" It is very good fudge. You can tell by looking.";
+    case "kettle":
+      if(f.pipCaught) return "The cast-iron kettle, lid clamped down. It rattles and swears in Infernal. Every so often a tiny voice says \"I want to speak to HR.\"";
+      if(f.pipInKettle) return "Pip is inside it, eating fudge with both hands. CLOSE it!";
+      if(f.kettleBaited) return "The cast-iron kettle, lid off, a square of fudge inside. It smells irresistible. To you, too, honestly.";
+      return "A cast-iron kettle with a heavy lid. It's the heaviest thing in the kitchen that isn't the cat.";
+    case "lanyard": f.readLanyard=true; return "A lanyard the length of a bootlace. The card reads: PIP · INTERN (UNPAID) · ACCOUNTS RECEIVABLE · 7TH CIRCLE. On the back: IF FOUND, RETURN TO ACCOUNTS RECEIVABLE.";
+    case "teapot": return "The good teapot: bone china, painted with roses, chipped in one place that has been carefully turned to the wall for twenty years. "+(f.brewed?"It's full of hot tea.":f.leaves?"There are leaves in it, but no water.":"It's empty.");
+    case "tea": return "A tin labeled TEA in the wizard's handwriting. A rare instance, in this house, of a label meaning what it says.";
+    case "nottea": return "A tin marked NOT TEA. It rattles. It also, faintly, whispers.";
+    case "saucepan": return "A dented saucepan. It boils water. It does not boil water with dignity."+(f.panHot?" It's full of boiling water right now.":"");
+    case "rug": return "A long hall rug in faded reds. It's about the size of a summoning circle, if you squint and are desperate.";
+    case "summons": return "A warm envelope that smells of sulfur, from the Infernal Small Claims Court. READ it.";
+    case "contract": return "Yellowed parchment with a scorch mark for a seal. "+(f.triplicate?"You have it in triplicate, courtesy of a mirror. ":"")+"READ it.";
+    case "quill": return "A black quill with an inkwell built into the shaft. Very convenient. Very ominous.";
+    case "paper": return f.agreement ? (f.catSigned ? "The sardine agreement, stamped with an inky paw print." : "The sardine agreement, in your best handwriting, unsigned. You also drew a little fish.") : "A sheet of the wizard's letterhead: MORDRATH THE UNYIELDING, and underneath, in much smaller type, (G. PENNYWHISTLE).";
+    case "circle":
+      if(a===1){
+        let t="A summoning circle drawn in chalk, about two meters across, glowing "+glow()+". ";
+        if(!f.mugMoved) t+="Your mug is sitting right on the line. You put it there without looking. You notice, now, that the chalk underneath it is smudged.";
+        else if(!f.saltDone) t+="Your mug left a perfect coffee ring through the chalk, breaking the line. Through the gap, faintly, you can hear what sounds like a filing cabinet.";
+        else if(!f.rootPlaced) t+="The salt line holds. The center of the circle is empty and seems to be waiting for something.";
+        else t+="Whole, rooted, and humming. It needs one more thing, and that thing is a name.";
+        return t;
+      }
+      if(a===2) return "The circle you closed last night. "+chalk()+" In the center, the mandrake root now has a tiny bite mark in it.";
+      if(a===3) return f.rugOnCircle ? "Covered by the hall rug. Out of sight, out of mind, and with luck, out of mother." : "Chalk, salt, a mandrake root, and an imp's half-finished homework. To a trained eye, extremely obvious. Mrs. Pennywhistle has a trained eye. She trained Gerald's.";
+      return "Under the rug. Let it stay there.";
+    case "desk": return a===4 ? "The desk, under more papers than ever."+(S.items.quill==="study"||S.items.paper==="study"?" A quill and some letterhead sit on top, within reach.":"") : "A desk buried in papers: three overdue library notices, a recipe for something called Basilisk Surprise, and a sticky note that just says MONDAY.";
+    case "armchair": return "A deep leather armchair with a permanent dent in it. It looks extremely comfortable, which is suspicious given the circumstances.";
+    case "fireplace": return "Cold ashes and the remains of what might have been a tax return.";
+    case "portrait":
+      if(a===4) return f.safeFound ? "The portrait hangs open on its hinge. Mordrath's painted eyes are fixed on the safe with alarm." : "An oil portrait of Mordrath the Unyielding: beard, staff, stern eyes. It's hanging slightly crooked, and the wizard has never let anything in this house hang crooked except his standards. You could look BEHIND it.";
+      return "An oil portrait of Mordrath the Unyielding: long beard, stern eyes, a staff, and the expression of a man who expects you to break something. You have.";
+    case "safe": return f.safeOpen ? "The safe is open. "+contents("safe","Inside: ","It's empty now.") : "A small iron safe with no dial and no keyhole, only a brass grille like a speaking tube. Engraved above it: STATE YOUR NAME.";
+    case "judge": return "The Honorable Judge Mabel: a very old toad in a powdered wig, presiding with the patience of something that has been sitting on a log since the Bronze Age.";
+    case "xal": return "Xal'thuun of Accounts Receivable: horns, hooves, a short-sleeved dress shirt, a clip-on tie, a lanyard, and a clipboard he holds like a weapon.";
+    case "bailiff": return "A gargoyle bailiff. He hasn't moved since he arrived. You suspect he hasn't moved since the cathedral.";
+    case "cat":
+      if(a===1) return "Bartholomew is a large grey cat with the bearing of a retired judge. "+(f.catFed?"He's fed, which has improved his opinion of you from 'contempt' to 'mild contempt'.":"He's staring at his empty bowl, then at you, then at the bowl, like he's teaching a slow class.");
+      if(a===2) return "Bartholomew, washing a paw and very deliberately not looking at anything imp-related.";
+      if(a===3) return f.catConvinced ? "Bartholomew in your pink earmuffs. He looks like a cat who has signed a treaty." : "Two yellow eyes at the top of the ladder. Bartholomew is wedged between Hexes, Volume 4 and a stuffed owl, and he is not coming down.";
+      return "Bartholomew, wearing pink earmuffs, sitting like a loaf. He has never looked more content or less approachable.";
+    case "pip": return "Pip is about the size of a cat: red, tiny horns, a clip-on tie, and the eager face of someone who still believes in the company."+(f.pipInKettle?" He's in the kettle right now. CLOSE it!":"");
+    case "mother": return "Mrs. Pennywhistle is small, upright, and wearing a hat with an entire pheasant on it. She has Gerald's eyes, if Gerald's eyes could spot dust from across a room.";
+    case "fridge": return f.fridgeOpen ? "The fridge is open and cold and humming. "+contents("fridge","Inside: ","It holds half a lemon and an air of regret.") : "A fridge with a magnet that says I'D RATHER BE TRANSMUTING. It's closed.";
+    case "pantry": return f.pantryOpen ? "The pantry is open. "+contents("pantry","Inside: ","Flour, a bag of dried newts, and nothing you need.") : "A tall pantry door, closed.";
+    case "drawer": return f.drawerOpen ? "The drawer is open. "+contents("drawer","Inside: ","String, rubber bands, and the spirit of every junk drawer ever.") : "A kitchen drawer. It's closed, and it's that kind of drawer.";
+    case "stove": return a===1 ? "A cast-iron stove with a kettle that whistles in a minor key." : a===2 ? "A cast-iron stove." : "A cast-iron stove with a bare ring where the kettle used to sit. The ring looks accusatory.";
+    case "oldkettle": return "A cast-iron kettle that whistles in a minor key.";
+    case "bowl": return a===1&&!f.catFed ? "An empty cat bowl with BARTHOLOMEW painted on it in gold leaf. The cat's name is better lettered than the wizard's." : "Licked so clean it reflects the ceiling.";
+    case "spices": return "Paprika, cumin, something labeled DRAGON (DO NOT), and a jar of what you sincerely hope is cinnamon.";
+    case "stairs": return "Narrow stone stairs leading down into the cellar, south of here. It's dark down there.";
+    case "shelves": return "Thousands of books. You spot Hexes for Beginners, Hexes for People Who Didn't Read Hexes for Beginners, and Owls: Why?";
+    case "readingdesk": return "A reading desk with a brass lamp that has no bulb, only a small, unfriendly flame that won't come out.";
+    case "ladder": return "A rolling library ladder."+(a===3&&!f.catConvinced?" At the top, a cat.":" You give it a push. It rolls three feet and stops, unimpressed.");
+    case "mandrake": return a===1&&!f.rootTaken ? "A mandrake in a clay pot. Its leaves twitch. Everyone knows mandrakes scream when pulled, and the scream knocks out anyone who hears it. Everyone, presumably, includes you." : "An empty clay pot with a dent in the soil shaped like an accusation.";
+    case "flytrap": return "A Venus flytrap the size of a dog. It snaps at you once, mostly for form.";
+    case "wateringcan": return "A copper watering can. The note said to water the mandrake.";
+    case "rack": return "A coat rack holding a moth-eaten cloak, a pointed hat with a stain on the brim, and "+(S.items.earmuffs==="foyer"?"a pair of fluffy pink earmuffs.":"an empty hook where the earmuffs were.");
+    case "frontdoor": return "A heavy oak door covered in warding runes. You tried it on Friday to step out for some air. The runes decided you were a burglar. You've been inside ever since.";
+    case "stand": return "An umbrella stand. "+contents("stand","In it: ","It holds no umbrellas, which in this climate is a choice.");
+    case "mailslot": return "A brochure is wedged in the mail slot: ANNUAL NECROMANCY & ALLIED ARTS SYMPOSIUM, BOURNEMOUTH. Keynote: \"Is Death Really the End of Your Career?\"";
+    case "mirror": return "An ornate gilt mirror. Your reflection looks tired. The mirror looks tired of you. You could TALK TO it if you want a hint and to feel worse.";
+    case "tub": return "There's a newt in the tub. It looks at you. You look at it. You both agree not to bring this up.";
+    case "medcab": return f.medOpen ? "Aspirin, floss, and a vial labeled TEARS (WHOSE?)." : "A medicine cabinet with a mirrored door. The mirrored door, mercifully, does not talk.";
+    case "sacks": return "Burlap sacks of coarse grey salt, stenciled SALT: FOR WARDING (NOT FOR FRIES). One sack is open. You could TAKE some.";
+    case "winerack": return "Dusty bottles with labels like Château Lich 1743. You consider one. You're already in enough trouble.";
+    case "furnace": return a===1 ? "An iron furnace ticking quietly. Something inside it is either cooling down or thinking." : "An iron furnace. Through the grate, two coals blink at you. That's Clive, a fire elemental who lives in there and forwards things. He doesn't like visitors.";
+  }
+  return "Nothing special. Rare, for this house.";
+}
+
+/* ================= shared actions ================= */
+function go(d){
+  if(S.act===4 && S.f.hearing){ say("The gargoyle bailiff puts one stone hand on your shoulder. You stay."); return 0; }
+  if(isDark() && d!=="n"){ say("You take a step into the dark, hit your shin on something that clinks, and decide the stairs back north are your best friend."); return 1; }
+  const to=ROOMS[S.room].exits[d];
+  if(!to){
+    if(S.room==="foyer" && d==="s"){ say(S.act===3 ? "The runes let mothers in. They do not let house-sitters out. You checked." : "You try the front door. The runes flare red and the handle gets very hot. The house has decided you're a burglar. In fairness, you did eat his cheese."); return 0; }
+    say("You can't go that way. Walls, mostly."); return 0;
+  }
+  if(S.act===2 && here("pip") && !S.f.pipInKettle) say("Pip waves goodbye with a piece of chalk.");
+  S.room=to; S.g.visited[to]=true;
+  look();
+  return 1;
+}
+function goTo(name){
+  const t=ROOM_NAMES[name.trim()];
+  if(!t){ say("You can't go there. Type MAP if you're lost, which you are."); return 0; }
+  if(t===S.room){ say("You're already here. Impressive, in a way."); return 0; }
+  const ex=ROOMS[S.room].exits;
+  for(const d in ex) if(ex[d]===t) return go(d);
+  say("You can't get there directly from here. Type MAP.");
+  return 0;
+}
+function leave(){
+  if(S.room==="foyer") return go("s");
+  if(isDark()) return go("n");
+  const ex=Object.keys(ROOMS[S.room].exits);
+  if(ex.length===1) return go(ex[0]);
+  say("Which way? N, S, E, or W.");
+  return 0;
+}
+function examine(ph, isRead){
+  ph=ph.trim();
+  if(/^(around|room|here)$/.test(ph)){ look(); return 0; }
+  const id=resolve(ph);
+  if(!id) return 0;
+  if(id==="note") return readNote();
+  if(id==="lanyard"){ say(describe(id)); if(S.act===2) award("lanyard",10,"a return address"); return 0; }
+  if(isRead || ["summons","contract","bestiary"].indexOf(id)>=0){
+    if(id==="spellbook") return S.act===2 ? openSpellbook() : readSpell();
+    if(id==="portalbook") return readPortal();
+    if(id==="bestiary") return readBestiary();
+    if(id==="summons") return readSummons();
+    if(id==="contract") return readContract();
+  }
+  say(describe(id));
+  return 0;
+}
+function inventory(){
+  const inv=Object.keys(ITEMS).filter(has);
+  if(!inv.length){ say("You're carrying nothing but regret."); return 0; }
+  const lines=inv.map(i=>{
+    let n=iname(i);
+    if(i==="candle" && S.f.candleLit) n+=" (lit)";
+    if(i==="tin" && S.f.tinOpen) n+=" (open)";
+    if(i==="earmuffs" && S.f.wearing) n+=" (being worn, regrettably)";
+    if(i==="saucepan" && S.f.panHot) n+=" (boiling water)";
+    return "  "+n;
+  });
+  say("You are carrying:\n"+lines.join("\n"));
+  return 0;
+}
+const TAKE_FIX = {
+  cat:"You try to pick up Bartholomew. He becomes forty pounds of liquid and opinions. You put him down.",
+  circle:"It's chalk on a floor. Also, you've touched it enough.",
+  portrait:"It's bolted to the wall. The wizard has met house-sitters before.",
+  mirror:"\"Don't you dare,\" says the mirror.",
+  mandrake:"The pot is heavy, and what you want is the root. You'd have to PULL it.",
+  flytrap:"It snaps at your hand. You take the hint.",
+  sacks:"They're far too heavy. You could TAKE SALT out of the open one, though.",
+  stove:"No.", ladder:"It's on rails. It's committed to the library.",
+  frontdoor:"If you could take the door, you could leave.",
+  winerack:"You're already in enough trouble.",
+  armchair:"It would never fit through the door, and the door won't let you out anyway.",
+  mother:"Absolutely not.", judge:"Contempt of court is a real charge here, and the sentences are measured in centuries.",
+  xal:"He's not yours to take. Yet.", bailiff:"He's made of stone. So, no.", safe:"It's set into the wall.",
+  oldkettle:"Leave the kettle. You'll miss it later."
+};
+const TAKE_MSG = {
+  note:"You take the note. It feels like evidence.",
+  spellbook:"You heave up the spellbook. Your back files a complaint.",
+  portalbook:"You take the book. A chained book on the next shelf rattles, jealous.",
+  matches:"You pocket the matches.",
+  opener:"You take the tin opener. It's the most honest object in the house.",
+  tin:"You take the sardines. In the kitchen, Bartholomew's ears swivel toward you like radar dishes.",
+  jar:"You pick up the jar. Something inside it blinks. You decide that was a reflection.",
+  earmuffs:"You take the earmuffs. They're very soft. You're not going to tell anyone.",
+  chopstick:"You take the wand. You feel powerful for nearly a full second.",
+  bestiary:"You take the bestiary. It's warm, which is not ideal in a book.",
+  kettle:"You heft the cast-iron kettle. It weighs about the same as your regrets.",
+  lanyard:"You take the tiny lanyard.",
+  teapot:"You take the good teapot, very carefully.",
+  rug:"You roll up the hall rug and tuck it under your arm.",
+  contract:"You take the contract. It's warm and slightly damp, like a handshake you didn't want.",
+  quill:"You take the quill. It drips a little, ominously.",
+  paper:"You take the sheet of letterhead."
+};
+function take(ph){
+  ph=ph.trim();
+  if(/salt/.test(ph) && S.room==="cellar") return takeSalt();
+  if(S.act===2 && find(ph,["pip"]) && here("pip")) return grabPip();
+  if(/^(all|everything)$/.test(ph)){
+    const got=visible().filter(i=>ITEMS[i] && !has(i) && i!=="root");
+    if(!got.length){ say("There's nothing here worth taking. You looked."); return 0; }
+    got.forEach(i=>{ S.items[i]="inv"; if(i==="mug" && S.act===1) S.f.mugMoved=true; });
+    if(S.act===3 && got.indexOf("rug")>=0 && S.room==="study") S.f.rugOnCircle=false;
+    say("You take "+list(got)+". Subtle.");
+    return 1;
+  }
+  const id=resolve(ph);
+  if(!id) return 0;
+  if(FIX[id]){ say(TAKE_FIX[id] || "That isn't going anywhere."); return 0; }
+  if(has(id)){ say("You already have it. Hoarding is a separate issue."); return 0; }
+  if(id==="mug" && S.act===1 && !S.f.mugMoved){
+    S.f.mugMoved=true; S.items.mug="inv";
+    say("You pick up your mug. Underneath is a perfect brown coffee ring, burned straight through the chalk line of the circle. The circle flares brighter, like it's been waiting for you to notice.\n\nSo. You did this.");
+    return 1;
+  }
+  if(id==="kettle" && S.f.pipInKettle){
+    S.f.pipInKettle=false; S.f.kettleBaited=false;
+    say("You grab the kettle by the handle. Pip shrieks, leaps out with the fudge in both fists, and is gone before you've finished flinching. Picking up the trap: not the move.");
+    S.items.kettle="inv";
+    return 1;
+  }
+  if(id==="rug" && S.act===3 && S.f.rugOnCircle){ S.f.rugOnCircle=false; S.items.rug="inv"; say("You pull the rug off the circle and roll it up. The circle is back on display, like a crime scene with good lighting."); return 1; }
+  S.items[id]="inv";
+  say(TAKE_MSG[id] || "Taken.");
+  return 1;
+}
+function drop(ph){
+  const id=resolve(ph);
+  if(!id) return 0;
+  if(!has(id)){ say("You aren't carrying that."); return 0; }
+  if(id==="earmuffs" && S.f.wearing) S.f.wearing=false;
+  S.items[id]=S.room;
+  if(id==="kettle" && S.act===2 && S.f.kettleBaited){ say("You set the kettle down with the lid off and the fudge inside, then step back and try to look like furniture. Somewhere in the house, something small sniffs the air."); return 1; }
+  if(id==="rug" && S.act===3 && S.room==="study") return coverCircle(true);
+  say("Dropped."+(id==="candle"&&S.f.candleLit?" It keeps burning on the floor, unbothered.":""));
+  return 1;
+}
+function openThing(ph){
+  const id=resolve(ph);
+  if(!id) return 0;
+  const f=S.f;
+  switch(id){
+    case "drawer":
+      if(f.drawerOpen){ say("It's already open."); return 0; }
+      f.drawerOpen=true; say("You yank the drawer open. It sticks halfway, as is tradition. "+contents("drawer","Inside, under some string: ","Just string.")); return 1;
+    case "pantry":
+      if(f.pantryOpen){ say("It's already open."); return 0; }
+      f.pantryOpen=true; say("You open the pantry. Flour, a bag of dried newts"+(contents("pantry",", and ","")?contents("pantry",", and ",""):", and nothing else you want.")+(S.act===1?" On the counter, Bartholomew sits up very straight.":"")); return 1;
+    case "fridge":
+      if(f.fridgeOpen){ say("It's already open."); return 0; }
+      f.fridgeOpen=true; say("You open the fridge. Half a lemon, the remains of a cheese"+(S.items.jar==="fridge"?", and a jar marked NOT OLIVES.":", and an empty space where a jar used to be.")); return 1;
+    case "medcab": f.medOpen=true; say("Aspirin, floss, and a vial labeled TEARS (WHOSE?). You close it again without asking."); return 1;
+    case "tin": return openTin();
+    case "frontdoor": return go("s");
+    case "spellbook": return S.act===2 ? openSpellbook() : readSpell();
+    case "portalbook": return readPortal();
+    case "bestiary": return readBestiary();
+    case "summons": return readSummons();
+    case "contract": return readContract();
+    case "stove": say("The oven contains a single, perfectly preserved scone from an unknown century. You close it."); return 1;
+    case "furnace": if(S.act===1){ say("You open the furnace door. A voice inside says \"Do you mind?\" You close the furnace door."); return 1; } say("\"Door stays shut unless you've got a parcel,\" says Clive."); return 0;
+    case "stand": say(describe("stand")); return 0;
+    case "kettle": say(S.f.pipCaught?"You are not opening that. Something inside it is still swearing.":"The lid's off already. It's a kettle, not a vault."); return 0;
+    case "safe": say(f.safeOpen?"It's already open.":"No dial, no keyhole. Just the grille and STATE YOUR NAME."); return 0;
+    case "portrait": if(S.act===4) return behindPortrait(); break;
+  }
+  say("You can't open that.");
+  return 0;
+}
+function closeThing(ph){
+  const id=resolve(ph);
+  if(!id) return 0;
+  if(id==="kettle") return closeKettle();
+  const map={drawer:"drawerOpen", pantry:"pantryOpen", fridge:"fridgeOpen", medcab:"medOpen"};
+  if(map[id]){
+    if(!S.f[map[id]]){ say("It's already closed."); return 0; }
+    S.f[map[id]]=false; say("Closed."); return 1;
+  }
+  if(id==="circle"){ say(S.act===1?"That's the general idea. You'll need the ritual, though. Shouting CLOSE at it won't do it. You checked.":"It's closed. That's the one thing that's gone right."); return 0; }
+  say("You can't close that.");
+  return 0;
+}
+function lightCandle(){
+  if(!isVisible("candle")){ say("You don't have a candle."); return 0; }
+  if(S.f.candleLit){ say("It's already lit. Any more lit and it would be a fire."); return 0; }
+  if(!has("matches")){ say("You'll need fire. Staring at the wick intensely does nothing, though you gave it a real try."); return 0; }
+  if(!has("candle")){ say("Pick it up first. Arson is a hands-on activity."); return 0; }
+  S.f.candleLit=true;
+  say("You strike a match from The Drowned Rat and light the candle. The flame catches, steadies, and leans slightly toward the study, like it wants to know what's going on in there.");
+  if(S.act===1) award("light",5);
+  if(S.room==="cellar") look();
+  return 1;
+}
+function douse(){
+  if(!S.f.candleLit){ say("It's not lit."); return 0; }
+  S.f.candleLit=false; say("You pinch out the candle."+(S.room==="cellar"?" It's pitch black again. Well done.":""));
+  return 1;
+}
+function wear(){
+  if(!has("earmuffs")){ say(isVisible("earmuffs")?"Pick them up first.":"You have nothing to wear except your dignity, and that's going fast."); return 0; }
+  if(S.f.wearing){ say("You're already wearing them. Very pink. Very warm."); return 0; }
+  S.f.wearing=true;
+  say("You put on the fluffy pink earmuffs. The world goes soft and quiet. You look ridiculous. Nobody is here to see it, except the portrait, in spirit.");
+  if(S.act===1) award("muffs",5);
+  return 1;
+}
+function unwear(){
+  if(!S.f.wearing){ say("You aren't wearing anything removable. Keep it that way."); return 0; }
+  S.f.wearing=false; say("You take off the earmuffs. The world comes back, louder and worse.");
+  return 1;
+}
+function sit(){
+  if(S.room!=="study"){ say("There's nowhere to sit that wouldn't be weird."); return 0; }
+  say(S.act===1 ? "You sink into the armchair. It's wonderful. It's the most comfortable you've been all night. The circle glows a little brighter, pointedly. You get up." : "You sit in the armchair for a moment. The dent fits you now. That's not a good sign.");
+  return 1;
+}
+function water(){
+  if(S.room!=="greenhouse"){ say("The watering can is in the greenhouse."); return 0; }
+  if(S.act!==1 || S.f.rootTaken){ say("You water the empty pot. It's a gesture. It's not a good one."); return 1; }
+  if(S.g.watered){ say("It's watered. Any more and it will learn to swim."); return 0; }
+  S.g.watered=true;
+  say("You water the mandrake, as instructed. It makes a small, contented noise, which is the most unsettling thing that has happened tonight. One item on the wizard's list, done. It feels hollow.");
+  return 1;
+}
+function eat(ph){
+  const id=resolve(ph,true);
+  if(!id){ say("You don't have anything like that to eat. You ate the cheese already."); return 0; }
+  if(id==="jar"){
+    if(S.act===3){ say("You reach for the jar. Some instinct, possibly survival, stops you."); return 0; }
+    S.items.jar=null; S.g.ateJar=true;
+    say("You unscrew the lid and eat one. It is not an olive. It is very much not an olive. It looks at you on the way down.\n\nYou put the lid back on and the jar in the bin, and hope.");
+    penalty("jar",5,"they were not olives");
+    return 1;
+  }
+  if(id==="fudge"){ say("You could eat the fudge. You'd enjoy it. Then you'd have no bait, an imp, and a sundown deadline. You put it back."); return 0; }
+  if(id==="tin"){ say("Bartholomew makes a noise you have never heard a cat make. You put the sardines down."); return 0; }
+  if(id==="root"){ say("You bring the root toward your mouth. It screams directly into your face. You decide against it."); return 0; }
+  if(id==="salt"){ say("You lick a grain of warding salt. You feel briefly protected from evil, and very thirsty."); return 0; }
+  if(id==="candle"){ say("It's beeswax, not cheese. Get a grip."); return 0; }
+  if(id==="contract"||id==="paper"||id==="summons"){ say("Eating the paperwork is a strategy, but the court would just issue more."); return 0; }
+  say("You can't eat that. You checked.");
+  return 0;
+}
+
+/* ================= ACT I ================= */
+function readNote(){
+  if(!isVisible("note")){ say("The note isn't here."); return 0; }
+  say("The wizard's note, in purple ink:");
+  say(NOTE_TEXT, "code");
+  say("You have, so far, violated items 1 and 3. Item 4 is looking shaky.");
+  if(S.act===1) award("note",5);
+  return 0;
+}
+function readSpell(){
+  if(!isVisible("spellbook")){ say("The spellbook isn't here."); return 0; }
+  if(S.act!==1){ say("You flip through the spellbook. Nothing in it is about this. Most of it is about newts."); return 0; }
+  S.f.readSpell=true;
+  say("You heave the spellbook open to the index. PORTALS, ACCIDENTAL, CLOSING OF: page 394.\n\nPage 394 has been neatly torn out. In the margin, in purple ink: \"Using as bookmark. See PORTALS: A CAUTIONARY TALE, library.\"\n\nHe tore a page out of his own spellbook to use as a bookmark in a different book. You are beginning to understand this man.");
+  award("spell",5);
+  return 1;
+}
+function readPortal(){
+  if(!isVisible("portalbook")){ say("That book isn't here."); return 0; }
+  if(S.act!==1){ say("You reread page 394. You've done that part. It's the other parts of this weekend that need a book."); return 0; }
+  S.f.knowsRitual=true;
+  say("You skip the cautionary tale (it ends badly for a wizard named Steve) and unfold page 394:");
+  say("TO CLOSE A PORTAL OPENED BY ACCIDENT, IDIOCY, OR BEVERAGE\n\n1. Make the circle whole again with warding salt.\n2. Set a mandrake root at its heart.\n3. Speak the true name of the circle's maker.\n\nThe maker's true name is known only to the maker,\nhis mother, and his cat. Do not ask his mother.", "code");
+  say("Salt, a mandrake root, and a name. The cat is starting to look like your best option, which is a sentence you didn't expect to think tonight.");
+  award("ritual",10);
+  return 1;
+}
+function openTin(){
+  if(!isVisible("tin")){ say("You don't have the tin."); return 0; }
+  if(S.f.tinOpen){ say("It's already open. The smell is a permanent resident now."); return 0; }
+  if(!has("opener")){ say("You try to open the tin with your fingernails. The tin wins. You'll need a tin opener."); return 1; }
+  S.f.tinOpen=true;
+  say("You crank the tin open. The smell of sardines fills the room, and probably the next room, and somewhere in the house a cat's pupils go fully round.");
+  award("tin",5);
+  return 1;
+}
+function feedCat(){
+  if(S.act!==1){ say(S.act===4 ? "Bartholomew has been fed. He's been fed every day since you met him, at length. He wants something else." : "Bartholomew isn't hungry. He's busy disapproving of you."); return 0; }
+  if(S.room!=="kitchen"){ say("Bartholomew is in the kitchen, waiting, as he will tell you, patiently."); return 0; }
+  if(S.f.catFed){ say("\"I've eaten,\" says Bartholomew. \"I'm not an animal.\""); return 0; }
+  if(!has("tin")){ say("You have nothing to feed him. Bartholomew closes his eyes, as if in prayer, or in judgment."); return 0; }
+  if(!S.f.tinOpen){ say("You offer Bartholomew the sealed tin. He looks at it, then at you. \"Thumbs,\" he says. \"You have them. I've seen them.\""); return 0; }
+  S.f.catFed=true; S.f.knowsName=true; S.items.tin=null;
+  say("You tip the sardines into the bowl. Bartholomew eats with the delicacy of a duke and the speed of a wood chipper. Then he sits back, licks one paw, and looks at you with something approaching respect.\n\n\"Fine,\" he says. \"You want the name. His true name is Gerald.\"\n\nYou wait for the rest.\n\n\"Mordrath the Unyielding was his idea. His mother still calls him Gerald. He goes a funny color when she does it in front of people.\"");
+  award("cat",10);
+  return 1;
+}
+function takeSalt(){
+  if(S.room!=="cellar"){ say("The salt is in the cellar."); return 0; }
+  if(isDark()){ say("You grope around in the dark, find something squishy, and stop groping."); return 1; }
+  if(S.act!==1){ say("You don't need salt today. The circle is the one part of this house that's behaving."); return 0; }
+  if(has("salt") || S.f.saltDone){ say("You have enough salt. More would just be seasoning."); return 0; }
+  S.items.salt="inv";
+  say("You scoop a generous bag of grey warding salt out of the open sack. It's cold and heavy and faintly smug.");
+  award("salt",10);
+  return 1;
+}
+function pullMandrake(){
+  if(S.room!=="greenhouse"){ say("The mandrake is in the greenhouse."); return 0; }
+  if(S.act!==1 || S.f.rootTaken){ say("The pot's empty. You already did the screaming part."); return 0; }
+  if(!S.f.wearing){
+    say("You grab the mandrake by its leaves and pull. It comes up out of the soil, opens a tiny mouth, and SCREAMS.\n\nThe next thing you know you're lying on the greenhouse floor looking at the ceiling. Twenty minutes are missing. Your ears are ringing in a key that doesn't exist. The mandrake is back in its pot, looking smug, as if it replanted itself out of spite.", "warn");
+    penalty("stun",5,"you were warned in writing");
+    S.g.stunned=true;
+    return 10;
+  }
+  S.f.rootTaken=true; S.items.root="inv";
+  say("You brace your feet and pull. The mandrake comes free with a wet pop and starts screaming. Through the earmuffs it sounds like a car alarm three streets away. After a while it gets tired and settles for glaring. You pocket the root.");
+  award("root",10);
+  return 1;
+}
+function saltCircle(){
+  if(S.act!==1){ say("The circle doesn't need more salt. It needs to be left alone."); return 0; }
+  if(S.room!=="study"){ say("The circle is in the study."); return 0; }
+  if(S.f.saltDone){ say("The salt line is already in place. More salt won't make it more closed."); return 0; }
+  if(!has("salt")){ say("You need warding salt. Table salt would just make the demon thirsty."); return 0; }
+  if(!S.f.mugMoved){ say("Your mug is still sitting on the line. The mug is, technically, the problem. Move it first."); return 0; }
+  S.f.saltDone=true; S.items.salt=null;
+  say("You pour a careful line of warding salt across the coffee-ring gap. The chalk drinks it in, the line knits closed, and the circle's hum drops half an octave, like someone shutting a window on a party.");
+  award("mend",10);
+  return 1;
+}
+function placeRoot(){
+  if(S.act!==1){ say("The root is already in the circle. It's put down roots. Literally."); return 0; }
+  if(S.room!=="study"){ say("The circle is in the study."); return 0; }
+  if(S.f.rootPlaced){ say("The root is already there. It's put down roots. Literally."); return 0; }
+  if(!has("root")){ say("You don't have a mandrake root."); return 0; }
+  S.f.rootPlaced=true; S.items.root=null;
+  say("You step carefully over the line and set the mandrake root in the center of the circle. It sinks a little into the floorboards, which floorboards shouldn't allow, and glares up at you. The glow tightens around it.");
+  award("rooted",10);
+  return 1;
+}
+function speakName(){
+  const f=S.f;
+  if(S.act===2){ say("You say \"Gerald.\" The circle stays shut. From somewhere in the house, a tiny voice says \"Who?\""); return 1; }
+  if(S.act===3){
+    if(here("mother")){ say("You say \"Gerald.\" Mrs. Pennywhistle looks up. \"Yes, dear? Oh, you mean him. He's not here. He's never here.\""); return 1; }
+    say("You say \"Gerald.\" Somewhere in the house, his mother says \"WHAT?\" You stop saying it."); return 1;
+  }
+  if(S.act===4){
+    if(S.room==="study" && f.safeFound && !f.safeOpen){
+      f.safeOpen=true;
+      say("You lean toward the brass grille and say \"Gerald.\" The safe hears its owner's true name, sighs like it has been waiting thirty years for someone to say it, and swings open. "+contents("safe","Inside: ",""));
+      award("safe",10);
+      return 1;
+    }
+    if(S.room==="study" && !f.safeFound){ say("You say \"Gerald.\" Behind the portrait, something goes click, then thinks better of it. The portrait looks alarmed."); return 1; }
+    say("You say \"Gerald\" to nobody in particular. Saying it has become a habit. A bad one."); return 1;
+  }
+  if(S.room!=="study"){ say("You say \"Gerald\" to an empty room. Somewhere very far away, a wizard sneezes."); return 1; }
+  if(!f.mugMoved || !f.saltDone){ say("You say \"Gerald.\" The circle flares at the name, but the power drains straight out through the gap in the line, like water from a cracked cup. It needs to be whole first."); return 1; }
+  if(!f.rootPlaced){ say("You say \"Gerald.\" The circle brightens and holds the note, waiting for something at its center to anchor it. Nothing's there. The glow slumps back down."); return 1; }
+  return completeAct1();
+}
+
+/* ================= ACT II ================= */
+function readBestiary(){
+  if(!isVisible("bestiary")){ say("The bestiary isn't here."); return 0; }
+  if(S.act===2) S.f.readBestiary=true;
+  say("You open the bestiary to I and find the entry, between IGUANA (CURSED) and INCUBUS (DON'T):");
+  say("IMP (infernal, minor)\n\nHabits: tidies compulsively, eats chalk, follows orders.\nWeaknesses: cannot resist anything sweet. Cannot lift iron.\nCapture: bait an iron vessel with sweets. Wait nearby.\n         Close the lid. Do not reason with it.\nDisposal: imps may be forwarded home through any fire,\n          provided the fire is told the return address.\n\nSee also: INTERNS.", "code");
+  if(S.act===2){ say("Sweets, iron, a lid, a fire, and an address. Somehow it's always five things."); award("bestiary",15); return 1; }
+  return 0;
+}
+function openSpellbook(){
+  if(!isVisible("spellbook")){ say("The spellbook isn't here."); return 0; }
+  if(S.f.fudgeFound){ say("The hollow is empty now except for wax paper and the smell of fudge."); return 0; }
+  S.f.fudgeFound=true; S.f.fudge=3; S.items.fudge="inv";
+  say("You heave the spellbook open. Pages 200 to 260 have been hollowed out with a penknife, and nestled inside, wrapped in wax paper and labeled EMERGENCY, are three squares of fudge.\n\nThe wizard hides his snacks in his spellbook. You are no longer surprised by anything. You take the fudge.");
+  award("fudge",15);
+  return 1;
+}
+function baitKettle(){
+  if(!has("fudge")){ say(S.f.fudgeFound?"You're out of fudge. That's a problem you should have thought about three squares ago.":"You need something sweet to bait it with."); return 0; }
+  if(!isVisible("kettle")){ say("You need the kettle."); return 0; }
+  if(S.f.pipCaught){ say("The kettle is occupied."); return 0; }
+  if(S.f.kettleBaited){ say("There's already fudge in it. Don't overdo it; you're catching an imp, not throwing a party."); return 0; }
+  S.f.fudge--; S.f.kettleBaited=true;
+  if(S.f.fudge<=0) S.items.fudge=null;
+  say("You put a square of fudge in the bottom of the kettle and leave the lid off. It looks like the world's least subtle trap. The bestiary assures you that's fine."+(has("kettle")?" Now set it down somewhere and wait nearby.":" Now wait nearby."));
+  award("bait",10);
+  return 1;
+}
+function closeKettle(){
+  if(!isVisible("kettle")){ say("The kettle isn't here."); return 0; }
+  if(S.f.pipCaught){ say("It's closed. It's staying closed. Something inside is lodging a complaint."); return 0; }
+  if(!S.f.pipInKettle){ say("You put the lid on the kettle, then take it off again. The idea is to have an imp in it first."); return 0; }
+  S.f.pipInKettle=false; S.f.pipCaught=true; S.f.kettleBaited=false; S.f.caughtAt=S.turn;
+  say("You slam the lid down. There's a muffled shriek, a lot of rattling, and then a small, furious voice: \"This is a breach of my rights as an intern!\"\n\nYou don't think he has any. You check the bestiary later. He doesn't.");
+  award("catch",30);
+  return 1;
+}
+function grabPip(){
+  if(!here("pip")){ say("Pip isn't here. He's an imp; he's somewhere, being busy."); return 0; }
+  if(S.f.pipInKettle) return closeKettle();
+  say("You lunge for Pip. He bites your thumb, says \"Ha!\", and disappears up the nearest available surface. When you look again he's in another room, humming.", "warn");
+  penalty("bite",5,"do not reason with it, and do not grab it");
+  movePip(true);
+  return 1;
+}
+function sendKettle(){
+  if(S.room!=="cellar"){ say("The furnace is in the cellar."); return 0; }
+  if(isDark()){ say("You can't find the furnace in the dark. You can hear it humming, which doesn't help."); return 1; }
+  if(!isVisible("kettle")){ say("You need the kettle, and ideally an imp in it."); return 0; }
+  if(!S.f.pipCaught){ say("\"That's a kettle,\" says Clive, through the grate. \"I forward parcels. Put something in it first.\""); return 0; }
+  if(S.f.cliveAsk){ say("\"I asked you a question,\" says Clive. \"Where's it going?\""); return 0; }
+  S.f.cliveAsk=true;
+  say("You open the furnace door. \"Do you mind?\" says a voice. Two coals blink at you from the embers. Then they notice the rattling kettle.\n\n\"Oh. A parcel.\" A sigh like a bellows. \"I'm Clive. I forward things. Where's it going? I need a proper address. I'm not just throwing an imp at Hell and hoping.\"", "voice");
+  return 1;
+}
+function sayAddress(arg){
+  if(/(accounts receivable|seventh circle|7th circle|xal ?'?thuun)/.test(arg)){
+    S.f.sent=true; S.items.kettle=null;
+    award("send",20);
+    return completeAct2();
+  }
+  if(/(hell|underworld|inferno|abyss|below|down)/.test(arg)){ say("\"Hell's a big place,\" says Clive. \"Which department?\"", "voice"); return 1; }
+  say("\"That's not an address,\" says Clive. \"That's a noise.\"", "voice");
+  return 1;
+}
+function movePip(fled){
+  const f=S.f;
+  if(f.pipCaught) return;
+  const was=f.pipRoom, wasHere=(was===S.room);
+  const trap = f.kettleBaited && S.items.kettle && S.items.kettle!=="inv" && ROOMS[S.items.kettle];
+  if(trap && !fled){ f.pipRoom=S.items.kettle; }
+  else { f.pipStep=(f.pipStep+1)%PIP_ROUTE.length; f.pipRoom=PIP_ROUTE[f.pipStep]; if(fled && f.pipRoom===S.room){ f.pipStep=(f.pipStep+1)%PIP_ROUTE.length; f.pipRoom=PIP_ROUTE[f.pipStep]; } }
+  const nowHere=(f.pipRoom===S.room) && !isDark();
+  if(trap && !fled && f.pipRoom===S.items.kettle){
+    if(S.room===f.pipRoom){
+      f.pipInKettle=true; f.eat=0;
+      say((wasHere?"":"Pip scampers in, nose twitching. ")+"He sees the kettle. He sees the fudge. He does not see the obvious trap, because imps never do. He climbs in and starts eating with both hands.\n\nThe lid is right there.", "npc");
+    } else {
+      f.kettleBaited=false;
+      say("Somewhere in the house, something small eats fudge, loudly and happily. When it's quiet again you know without looking that the kettle is empty.", "voice");
+    }
+    return;
+  }
+  if(fled) return;
+  if(wasHere && !nowHere && !isDark()) say("Pip scampers off, trailing chalk dust.", "npc");
+  else if(!wasHere && nowHere) say("Pip scampers in and starts "+PIP_DOING[S.room].replace(/^crouched by/,"crouching by")+".", "npc");
+}
+
+/* ================= ACT III ================= */
+function addSusp(n, msg){
+  const f=S.f;
+  f.susp=Math.min(3, f.susp+n);
+  if(msg) say(msg, "warn");
+  if(f.susp>=3){ lossAct3(); return true; }
+  return false;
+}
+function momTalk(){
+  const f=S.f;
+  if(f.wearing && !f.earmuffWarned){ f.earmuffWarned=true; if(addSusp(1,"Mrs. Pennywhistle stops mid-sentence. \"Are you wearing earmuffs? Indoors? In front of me?\" You take them off. She writes something down in a very small notebook.")) return 1; f.wearing=false; return 1; }
+  const L = f.stage===0 ? [
+    "\"Tea, dear,\" says Mrs. Pennywhistle. \"Gerald always makes it in the kettle. Where is the kettle?\" You say something. It isn't an answer.",
+    "\"The good teapot is in the pantry,\" she says. \"Gerald thinks I don't know. I know everything in this house.\"",
+    "\"You're not one of his apprentices, are you? The last one turned into a heron. Lovely boy. Terrible at tea.\""
+  ] : f.stage===1 ? [
+    "\"Lovely,\" she says, sipping. \"When I've finished this, I want to see his study. He never lets me see his study.\"",
+    "She sips. \"He gets the secrecy from his father. And the beard. And the summoning, if I'm honest.\""
+  ] : [
+    "\"Where's my Barty?\" says Mrs. Pennywhistle. \"He always hides when I visit. I can't think why.\"",
+    "\"Barty! Barty-boo!\" she calls. Somewhere in the house, a cat considers emigrating."
+  ];
+  say(L[f.npcTalks % L.length]); f.npcTalks++;
+  return 1;
+}
+function compliment(){
+  const f=S.f;
+  if(S.act!==3 || !here("mother")){ say("You compliment the room. The room is unmoved."); return 0; }
+  if(f.complimented){ say("You compliment her hat again. She narrows her eyes. Once is charming. Twice is a sales pitch."); return 1; }
+  f.complimented=true; f.susp=Math.max(0,f.susp-1);
+  say("You tell Mrs. Pennywhistle that her hat is magnificent. She touches the pheasant. \"Thank you, dear. I shot it myself.\" She looks at you with a new and slightly alarming warmth.");
+  award("hat",10);
+  return 1;
+}
+function leavesIn(which){
+  const f=S.f;
+  if(!isVisible("teapot")){ say("You need the teapot."); return 0; }
+  if(f.leaves){ say("There are already leaves in the teapot."); return 0; }
+  if(!isVisible(which)){ say("You don't have that."); return 0; }
+  f.leaves=which;
+  say(which==="tea" ? "You spoon tea leaves into the good teapot. Proper loose leaf. You feel briefly civilized." : "You tip a spoonful from the NOT TEA tin into the teapot. It rattles going in. Something in the pot says \"ow.\"");
+  return 1;
+}
+function boilWater(){
+  if(S.room!=="kitchen"){ say("The stove is in the kitchen."); return 0; }
+  if(!has("saucepan")){ say("The kettle is in the infernal postal system with an imp in it. You'll need something else to boil water in."); return 0; }
+  if(S.f.panHot){ say("It's already boiling."); return 0; }
+  S.f.panHot=true;
+  say("You fill the saucepan and put it on the stove. It boils with a sullen, low-status bubbling."+(here("mother")?" Mrs. Pennywhistle watches you do it. She does not say anything. She doesn't have to.":""));
+  return 1;
+}
+function pourWater(){
+  const f=S.f;
+  if(!has("saucepan") || !f.panHot){ say("You don't have any hot water."); return 0; }
+  if(!isVisible("teapot")){ say("You need the teapot."); return 0; }
+  if(!f.leaves){ say("Leaves first. You're not making hot water soup."); return 0; }
+  if(f.brewed){ say("It's already brewed."); return 0; }
+  f.brewed=true; f.src="pan"; f.panHot=false;
+  say("You pour the boiling water into the teapot. It steeps. It smells like tea. It also, very faintly, smells like saucepan.");
+  return 1;
+}
+function cliveBrew(){
+  const f=S.f;
+  if(S.room!=="cellar"){ say("Clive is in the cellar."); return 0; }
+  if(isDark()){ say("You can't find the furnace in the dark."); return 1; }
+  if(!isVisible("teapot")){ say("\"Bring me a pot,\" says Clive. \"I'm not boiling the air.\""); return 0; }
+  if(!f.leaves){ say("\"Leaves first,\" says Clive. \"I'm a primordial being of flame, not a barista.\""); return 0; }
+  if(f.brewed){ say("\"It's done,\" says Clive. \"Go away.\""); return 0; }
+  f.brewed=true; f.src="clive";
+  say("You open the furnace door and hold out the teapot. Clive sighs, breathes on it, and the pot fills with water at a perfect, rolling boil from somewhere he refuses to discuss.\n\n\"Ninety-eight degrees,\" he says. \"Don't tell anyone I did this. I have a reputation.\"", "voice");
+  return 1;
+}
+function serveTea(){
+  const f=S.f;
+  if(S.act!==3){ say("There's nobody to serve tea to, and no kettle. It's been that kind of weekend."); return 0; }
+  if(!here("mother")){ say("Mrs. Pennywhistle is in the "+f.momRoom+"."); return 0; }
+  if(f.stage>0){ say("\"I've had my tea, dear. One is a cup, two is a habit.\""); return 0; }
+  if(!has("teapot")){ say("You need the teapot."); return 0; }
+  if(!f.brewed){ say(f.leaves?"There's no water in it. She notices before you do.":"You offer her an empty teapot. She looks into it, then at you. \"Is this a riddle?\""); return 0; }
+  f.stage=1; f.finish=6;
+  if(f.leaves==="nottea"){
+    say("She sips. Her eyes go very wide. Her hat's pheasant ruffles all of its feathers at once. \"That,\" she says, \"was not tea.\" She sets the cup down very, very carefully.");
+    if(addSusp(2)) return 1;
+  } else if(f.src==="pan"){
+    say("She sips. \"Saucepan,\" she says. It isn't a question. \"Where's the kettle?\" You say it's being repaired. She narrows her eyes and makes a note in a very small notebook.");
+    award("tea",20);
+    if(addSusp(1)) return 1;
+  } else {
+    say("She sips, and closes her eyes. \"Now that,\" she says, \"is a proper cup. Boiled with real fire. You can taste it.\" You say nothing about Clive. Clive says nothing about you.");
+    award("tea",20); award("clive",10,"boiled by a fire elemental, not a saucepan");
+  }
+  if(S.g.ateJar){
+    if(addSusp(1,"\"Did Gerald enjoy the pickled eyes I sent?\" she asks. \"The jar marked NOT OLIVES?\" You say they were very popular. \"He's eaten them? He never eats them.\" She looks at you for a long, long time.")) return 1;
+  } else {
+    say("\"And he's still got the pickled eyes I sent,\" she says, glancing at the fridge. \"Good. They're for his complexion.\"");
+  }
+  say("\"When I've finished this cup,\" she adds, \"I'd like to see his study.\"");
+  return 1;
+}
+function coverCircle(fromDrop){
+  const f=S.f;
+  if(S.act!==3){ say("It's fine as it is. Leave it."); return 0; }
+  if(S.room!=="study"){ say("The circle is in the study."); return 0; }
+  if(f.rugOnCircle){ say("It's covered. Any more covered and it would be upholstered."); return 0; }
+  if(!has("rug") && !(fromDrop && S.items.rug==="study")){ say("You need something to cover it with. Your body is not big enough, and lying on the floor would raise questions."); return 0; }
+  f.rugOnCircle=true; S.items.rug="study";
+  say("You unroll the hall rug over the circle and nudge the edges until the salt and chalk are completely hidden. It looks like a room where a rug lives. Mostly.");
+  return 1;
+}
+function momInspects(){
+  const f=S.f;
+  f.momRoom="study"; f.stage=2;
+  const there=(S.room==="study");
+  if(!there) say("You hear Mrs. Pennywhistle put down her cup and march into the study.", "warn");
+  if(f.rugOnCircle){
+    say((there?"Mrs. Pennywhistle marches in. ":"From the study: ")+"\"What a lovely rug,\" she says. \"Odd place for it.\" She moves on to the bookshelves and begins, quietly and thoroughly, to judge the dust.", there?"npc":"voice");
+    award("rug",20,"the circle stayed hidden");
+  } else {
+    if(addSusp(2,(there?"Mrs. Pennywhistle marches in and stops dead. ":"From the study comes a scream of pure maternal fury: ")+"\"Is that a SALT line? Has he been SUMMONING again? He promised me after the incident in '04!\" You say it's decorative. Nobody believes you, including you.")) return;
+  }
+  say((there?"":"From the study: ")+"\"Now,\" she says, \"where's my Barty?\"", there?"npc":"voice");
+  if(f.catConvinced) catArrives();
+}
+function convinceCat(){
+  const f=S.f;
+  if(S.act!==3){ say("Bartholomew allows the earmuffs to be placed on his head for exactly one second. Then you are bleeding, slightly, and the earmuffs are on the floor. You pick them up."); return 1; }
+  if(!here("cat")){ say("Bartholomew isn't here."); return 0; }
+  if(f.catConvinced){ say("He's already wearing them."); return 0; }
+  if(!has("earmuffs")){ say("You don't have anything he wants."); return 0; }
+  if(f.wearing) f.wearing=false;
+  f.catConvinced=true; S.items.earmuffs=null;
+  say("You climb halfway up the ladder and hold up the pink earmuffs. Bartholomew looks at them for a long moment. Then he lowers his head and lets you put them on.\n\n\"For her,\" he says, with enormous dignity, \"I'll make an exception.\" He climbs down and pads off.");
+  award("cat3",25);
+  if(f.stage===2){ catArrives(); return 0; }
+  f.catRoom="kitchen"; say("\"Tell me when she wants me,\" he calls back. \"Don't tell me anything else.\"");
+  return 1;
+}
+function catArrives(){
+  const f=S.f;
+  f.catRoom=f.momRoom;
+  if(f.susp===0) award("clean",15,"not a flicker of suspicion");
+  completeAct3();
+}
+
+/* ================= ACT IV ================= */
+function readSummons(){
+  if(!isVisible("summons")){ say("The summons isn't here."); return 0; }
+  S.f.readSummons=true;
+  say("INFERNAL SMALL CLAIMS COURT · 7th Circle Division\n\nXal'thuun (Accounts Receivable) v. G. Pennywhistle (\"Mordrath\") and Household\n\nMatter: one (1) soul, outstanding since 1994, plus late fees,\n        plus one (1) intern, returned via furnace, slightly singed\nHearing: Monday, 09:00, at the respondent's residence\n\nThe respondent shall produce the original contract IN TRIPLICATE.\nFailure to settle results in default judgment\nagainst whoever is home.", "code");
+  say("You are, as far as anyone can tell, whoever is home.");
+  award("summons",10);
+  return 1;
+}
+function behindPortrait(){
+  if(S.act!==4){ say("Behind the portrait: wall, and a spider who would like to be left alone."); return 0; }
+  if(S.room!=="study"){ say("The portrait is in the study."); return 0; }
+  if(S.f.safeFound){ say("The portrait is already swung open. The safe is still there, still waiting for a name."); return 0; }
+  S.f.safeFound=true;
+  say("You lift the edge of the crooked portrait. It swings out on a hinge. Behind it, set into the wall, is a small iron safe with no dial and no keyhole, just a brass grille like a speaking tube. Engraved above the grille: STATE YOUR NAME.\n\nMordrath's painted eyes follow your hands with open alarm.");
+  award("portrait",5);
+  return 1;
+}
+function readContract(){
+  if(!isVisible("contract")){ say("You don't have the contract."); return 0; }
+  S.f.readContract=true;
+  say("CONTRACT OF SOUL (STANDARD, NON-NEGOTIABLE)\n\nI, Gerald Pennywhistle, aged 15, agree to surrender one (1) soul,\npayable on demand, in exchange for a passing grade in\nWizarding Certification (Practical).\n\nPayment may be rendered by the signatory\nOR ANY MEMBER OF HIS HOUSEHOLD.\n\"Soul\" includes any soul-equivalent, life force, or spare life.\n\nSigned: Gerald P. (in blood, and also in purple felt-tip)\nWitnessed: Xal'thuun, Accounts Receivable", "code");
+  say("Any member of his household. Any spare life. You think about who in this house has spares. There's exactly one candidate, and he's wearing your earmuffs.");
+  award("contract",10);
+  return 1;
+}
+function triplicate(){
+  const f=S.f;
+  if(S.room!=="bathroom"){ say("You don't have a copier. You do have a very self-important mirror, in the bathroom."); return 0; }
+  if(!has("contract")){ say("You hold up nothing to the mirror. It reflects nothing back, with contempt."); return 0; }
+  if(f.triplicate){ say("\"No,\" says the mirror. \"Two copies is my limit. It feels like sneezing.\""); return 0; }
+  f.triplicate=true;
+  say("You hold the contract up to the mirror. \"Oh, for heaven's sake,\" says the mirror, and two reflections of the contract peel off the glass and drop into your hand, perfectly solid and slightly cold, with the writing the right way round.\n\n\"Triplicate,\" says the mirror. \"Don't ever ask me to do that again.\"", "voice");
+  award("triple",15);
+  return 1;
+}
+function writeAgreement(){
+  const f=S.f;
+  if(S.act!==4){ say("You have nothing to write and nothing to write it with. That's the most organized you've been all weekend."); return 0; }
+  if(!has("quill") || !has("paper")){ say("You need both a quill and paper. The desk in the study has both."); return 0; }
+  if(f.agreement){ say("You've already written it. Adding more fish drawings won't make it more binding."); return 0; }
+  f.agreement=true;
+  say("You write, in your best handwriting:");
+  say("I, the house-sitter, on behalf of Gerald Pennywhistle, promise\nBARTHOLOMEW one (1) tin of Sardines of Distinction per day,\nfor life, in exchange for one (1) spare life, to be surrendered\nto Accounts Receivable in full settlement.", "code");
+  say("It's the most legally binding thing you've ever written. You also drew a little fish.");
+  award("agree",10);
+  return 1;
+}
+function catSigns(){
+  const f=S.f;
+  if(!here("cat")){ say("Bartholomew isn't here."); return 0; }
+  if(!f.agreement){ say("Bartholomew glances at the blank sheet. \"I'm not signing a blank page. I've seen what happens to people who sign blank pages. One of them owns this house.\""); return 0; }
+  if(f.catSigned){ say("He's already signed. He's licking the ink off his paw, which can't be healthy."); return 0; }
+  f.catSigned=true;
+  say("Bartholomew reads the whole thing twice. \"Per life,\" he says. \"Not per lifetime. Per life. Add it.\" You add it. He presses one paw into the quill's inkwell and stamps the page.\n\n\"Eight lives is plenty,\" he says. \"I've been coasting on the last three anyway.\"");
+  award("signed",15);
+  if(f.hearing && f.hstage===2) return hearingWin();
+  return 1;
+}
+function startHearing(){
+  const f=S.f;
+  f.hearing=true; f.hstage=1;
+  const wasAway=(S.room!=="study");
+  S.room="study"; S.g.visited.study=true;
+  say("09:00. "+(wasAway?"The floor tilts, the walls fold, and you are lifted bodily and set down in the study.":"The study door slams by itself.")+" The room is bigger than it was. A bench of black stone has grown up out of the floor where the desk was. On it sits a very old toad in a powdered wig: the Honorable Judge Mabel. A gargoyle bailiff stands by the fireplace. At a little folding table, clipboard ready, sits Xal'thuun of Accounts Receivable, beaming at you.\n\n\"Court is in session,\" croaks Judge Mabel. \"The respondent will PRESENT the CONTRACT.\"", "npc");
+}
+function strike(msg){
+  const f=S.f;
+  f.strikes++;
+  say(msg, "warn");
+  if(f.strikes>=3){ lossAct4("Default Judgment","\"Three strikes,\" croaks Judge Mabel. \"Default judgment against whoever is home.\" Everyone turns to look at you. Xal'thuun takes out a fresh form and a very sharp pen.\n\nAccounts Receivable turns out to be a large office with no windows and a lot of filing. They give you a desk. Your mug, somehow, has come with you."); return true; }
+  say("Strike "+f.strikes+" of 3.", "sys");
+  return false;
+}
+function hearingPresent(arg){
+  const f=S.f;
+  const id=find(arg, ALL);
+  if(f.hstage===1){
+    if(id==="contract"||/contract|copies/.test(arg)){
+      if(!has("contract")){ strike("You present your empty hands. \"The respondent will present the CONTRACT,\" croaks the judge."); return 1; }
+      if(!f.triplicate){ strike("\"Triplicate,\" croaks the judge. \"It says so on the summons. In bold.\""); return 1; }
+      f.hstage=2;
+      say("You hand up three copies. The judge reads one, Xal'thuun reads another, and the bailiff eats the third. \"Accepted,\" croaks Judge Mabel. \"The contract is valid. One soul is owed. The respondent will now indicate WHO PAYS.\" Xal'thuun looks at you and licks his pen.", "npc");
+      award("filed",10);
+      return 1;
+    }
+    strike("\"That,\" croaks the judge, \"is not a contract.\"");
+    return 1;
+  }
+  if(id==="cat"||/cat|bartholomew|barty/.test(arg)) return hearingCall("cat");
+  if(id==="paper"){ if(here("cat")) return catSigns(); say("\"The court doesn't need your stationery,\" croaks the judge. \"It needs a payer.\""); return 0; }
+  strike("\"Irrelevant,\" croaks the judge. \"Who pays?\"");
+  return 1;
+}
+function hearingCall(arg){
+  const f=S.f;
+  if(!f.hearing){ say("You call for Bartholomew. He does not come when called. He comes when it suits him."); return 0; }
+  if(/(me|myself|self|my soul|house ?sitter)/.test(arg)) return proBono();
+  if(!/(cat|bartholomew|barty)/.test(arg)){ say("\"The court does not recognize that party,\" croaks the judge."); return 0; }
+  if(f.hstage<2){ strike("\"Witnesses come AFTER filings,\" croaks the judge. \"Present the contract.\""); return 1; }
+  if(f.catRoom!=="study"){
+    f.catRoom="study";
+    say("Bartholomew strolls in, earmuffs on, takes in the stone bench, the gargoyle, and the demon, and hops up onto the edge of the bench like he owns it.", "npc");
+  }
+  if(f.catSigned) return hearingWin();
+  strike("Bartholomew looks around the court, then at you. \"I haven't agreed to anything,\" he says, and starts washing."+(f.agreement&&has("paper")?" You're holding a sardine agreement that says otherwise, if he'd sign it.":""));
+  return 1;
+}
+function proBono(){
+  lossAct4("Pro Bono","You stand up and offer yourself. The court goes silent. Xal'thuun looks you up and down, sighs, and fills in a form.\n\n\"A house-sitter,\" he says. \"The paperwork alone. But fine.\"\n\nAccounts Receivable turns out to be a large office with no windows and a lot of filing. You get a desk and a lanyard. On your first day, Pip brings you a coffee. He's management now.");
+  return 0;
+}
+function hearingWin(){
+  award("paid",15);
+  return completeAct4();
+}
+
+/* ================= people ================= */
+const CAT_LINES = {
+  1:["Bartholomew regards you with the flat contempt of a creature who has outlived three house-sitters. \"You were supposed to feed me at eight,\" he says. \"It is now considerably after eight.\"",
+     "\"I have information,\" says Bartholomew. \"Information is dinner-adjacent. Do the math.\"",
+     "\"Sardines,\" says the cat. \"Pantry. Opened, ideally. I lack thumbs, not standards.\""],
+  "1fed":["\"Gerald,\" Bartholomew repeats, slowly, like you're a tourist. \"Say it in the study, after you've fixed the mess. Obviously.\"",
+     "\"The salt goes on the gap,\" says Bartholomew. \"The root goes in the middle. The name goes last. I explain this to the mice.\"",
+     "Bartholomew is cleaning a paw and does not acknowledge you. You've been demoted from 'staff' back to 'furniture'."],
+  2:["\"There's an intern in my house,\" says Bartholomew. \"I don't do vermin with a job title. Read a book about it.\"",
+     "\"Imps are easy,\" says Bartholomew. \"Something sweet, something iron, and patience. You have one of those things. Barely.\"",
+     "\"He drew on my bowl,\" says Bartholomew. \"In chalk. A little diagram. I want him gone.\""],
+  3:["\"She calls me Barty,\" says Bartholomew from the top shelf. \"She pinches. She SINGS. I'm not coming down without protection.\"",
+     "\"Protection,\" he repeats. \"For my ears. She sings, I told you. Opera. At close range.\""],
+  "3done":["\"Don't,\" says Bartholomew, from under the earmuffs. \"Just don't.\""],
+  4:["\"You want something,\" says Bartholomew, without opening his eyes. \"You have that look. Whatever it is, I want it in writing.\"",
+     "\"I have nine lives,\" Bartholomew says. \"Had. Have. It's complicated. The point is I don't give them away for free.\""],
+  "4done":["\"Eight lives,\" muses Bartholomew. \"Still more than you.\""]
+};
+const MIRROR_OPEN = ["The mirror sighs like you're the fourth person to ask today. \"Fine.\"","\"Oh, it's you,\" says the mirror. \"Here's a crumb.\"","The mirror examines its nails, which it does not have. \"Since you clearly need it:\""];
+const PIP_LINES = ["\"Unpaid internship!\" says Pip, waving a tiny clipboard. \"Incredible exposure! I'm basically management.\"","\"The boss is coming back at sundown,\" says Pip. \"Big promotion for me. Possibly a stapler.\"","\"Do you have any sweets?\" asks Pip. \"Not for me. For a friend. The friend is me.\""];
+const CLIVE_LINES = {
+  2:["\"Do you mind?\" says Clive. \"Fire elementals need eighteen hours of rest a day.\"","\"I forward things,\" says Clive. \"Through fire. Anywhere there's fire. It's a service. I don't enjoy it.\"","\"If you've got a parcel, put it in. If you haven't, go away. Those are the two options.\""],
+  3:["\"Hot water?\" says Clive. \"I'm a primordial being of flame. Fine. Bring the pot. Leaves first.\"","\"Is she still up there?\" asks Clive. \"Gerald's mother? I can hear her through two floors and a chimney.\""],
+  4:["\"Court case, is it?\" says Clive. \"I've been to Infernal Small Claims. Bring copies. They always want copies.\"","\"Good luck,\" says Clive. \"I mean that. If you lose, I'm the one who has to forward you.\""]
+};
+function talk(ph){
+  const f=S.f;
+  ph=(ph||"").replace(/\s+(about|regarding)\s+.*$/,"").trim();
+  let id=ph ? resolve(ph,true) : null;
+  if(ph && !id){
+    const any=find(ph,["cat","mirror","portrait","pip","mother","furnace","judge","xal"]);
+    if(any){ say("They're not here."); return 0; }
+  }
+  if(!id){
+    const people=["mother","pip","judge","cat","mirror","furnace"].filter(p=>here(p));
+    if(people.length) id=people[0];
+  }
+  if(f.wearing && id && ["cat","mirror","mother","pip","furnace","judge"].indexOf(id)>=0 && id!=="mother"){ say("Something is said to you. With the earmuffs on, all you get is \"mmf mmf mmf.\" Judging by the tone, you aren't missing much. Take them off to listen."); return 0; }
+  switch(id){
+    case "cat": {
+      const key = S.act===1 ? (f.catFed?"1fed":1) : S.act===3 ? (f.catConvinced?"3done":3) : S.act===4 ? (f.catSigned?"4done":4) : 2;
+      const L=CAT_LINES[key]; say(L[f.catTalks % L.length]); f.catTalks++; return 1;
+    }
+    case "mirror": say(MIRROR_OPEN[f.mirrorTalks % MIRROR_OPEN.length], "voice"); f.mirrorTalks++; say(hintText(), "voice"); return 1;
+    case "pip": say(PIP_LINES[f.npcTalks % PIP_LINES.length]); f.npcTalks++; return 1;
+    case "mother": return momTalk();
+    case "furnace":
+      if(isDark()){ say("You talk into the dark. Something in the dark talks back, but it's just the furnace grumbling."); return 1; }
+      if(S.act===1){ say("A voice from inside the furnace says \"Do you MIND?\" You don't, but it clearly does."); return 1; }
+      if(S.act===2 && f.cliveAsk){ say("\"Address,\" says Clive. \"SAY it. Department and circle, ideally.\"", "voice"); return 1; }
+      { const L=CLIVE_LINES[S.act]; say(L[f.npcTalks % L.length], "voice"); f.npcTalks++; return 1; }
+    case "judge": say(f.hstage===1?"\"The court is not here for chitchat,\" croaks Judge Mabel. \"Present the contract.\"":"\"The court is waiting,\" croaks the judge. \"Who pays?\""); return 0;
+    case "xal": say("\"Lovely house,\" says Xal'thuun. \"Good bones. Mine, possibly, depending on how this goes.\""); return 0;
+    case "bailiff": say("The gargoyle does not respond. A pigeon lands on him, considers it, and leaves."); return 0;
+    case "portrait": say("The portrait does not speak. It just looks disappointed, which it was doing anyway."); return 0;
+    case "circle": if(S.act===1){ say("You lean toward the circle and say hello. A polite voice on the other side says, \"Oh, hello! Is Mordrath in? I have a midnight appointment.\" You decide not to keep chatting.", "voice"); return 1; } say("The circle is quiet. You'd like to keep it that way."); return 0;
+    case "tub": say("You say hello to the newt. The newt has nothing to say to you, and you respect that."); return 0;
+  }
+  if(id){ say("It has nothing to say. Most things in this house have something to say, so take the silence as a compliment."); return 0; }
+  say("There's nobody here to talk to. Talking to yourself is allowed, but it won't help.");
+  return 0;
+}
+
+/* ================= combining ================= */
+function combine(a, b){
+  const x=resolve(a); if(!x) return 0;
+  const y=resolve(b); if(!y) return 0;
+  const pair=(p,q)=>(x===p&&y===q)||(x===q&&y===p);
+  const act=S.act;
+  if(act===1){
+    if(pair("salt","circle")) return saltCircle();
+    if(pair("root","circle")) return placeRoot();
+    if(pair("mug","circle")){ say("Absolutely not. You've learned exactly one thing tonight."); return 0; }
+    if(pair("opener","tin")) return openTin();
+    if(pair("tin","cat") || pair("tin","bowl")) return feedCat();
+    if(pair("candle","circle")){ say("You hold the candle over the circle. It casts excellent light on the situation. The situation is still bad."); return 0; }
+    if(pair("jar","cat") || pair("jar","bowl")){ say("Bartholomew looks at the jar and then at you. \"Those are someone's,\" he says, and declines to elaborate."); return 0; }
+    if(pair("note","fireplace")){ say("Burning the evidence won't close the portal. It's tempting, though."); return 0; }
+  }
+  if(act===2){
+    if(pair("fudge","kettle")) return baitKettle();
+    if(pair("kettle","furnace")) return sendKettle();
+    if(pair("pip","kettle")){ say("He won't go in for you. He'll go in for fudge."); return 0; }
+    if(pair("fudge","pip")){ say("Pip snatches the square of fudge from your hand, eats it in one bite, says \"Thanks, boss!\" and runs off. That was bait. That was your bait."); S.f.fudge--; if(S.f.fudge<=0) S.items.fudge=null; movePip(true); return 1; }
+    if(pair("lanyard","furnace")){ say("\"Don't give me the card,\" says Clive. \"SAY the address. I can't read; I'm on fire.\""); return 0; }
+  }
+  if(act===3){
+    if(pair("tea","teapot")) return leavesIn("tea");
+    if(pair("nottea","teapot")) return leavesIn("nottea");
+    if(pair("saucepan","stove")) return boilWater();
+    if(pair("saucepan","teapot")) return pourWater();
+    if(pair("teapot","furnace")) return cliveBrew();
+    if(pair("teapot","mother")) return serveTea();
+    if(pair("rug","circle")) return coverCircle();
+    if(pair("earmuffs","cat")) return convinceCat();
+    if(pair("jar","mother")){ say("\"My pickled eyes! Why are you handing them to me?\" She puts them back in the fridge herself, frowning."); return 1; }
+    if(pair("chopstick","mother")){ say("\"That's a chopstick, dear,\" she says. \"Gerald's been telling people it's a wand since he was nine.\""); return 0; }
+    if((pair("tea","mother")||pair("nottea","mother")) && S.f.brewed && has("teapot")) return serveTea();
+    if(pair("tea","mother")||pair("nottea","mother")){ say("\"In the POT, dear,\" she says. \"With WATER. Were you raised in a cave?\""); return 0; }
+  }
+  if(act===4){
+    if(pair("contract","mirror")) return triplicate();
+    if(pair("paper","cat")) return catSigns();
+    if(pair("quill","paper")) return writeAgreement();
+    if((pair("contract","judge")||pair("contract","xal")) && S.f.hearing) return hearingPresent("contract");
+    if(pair("earmuffs","cat")){ say("He's already wearing them. He may never take them off."); return 0; }
+    if(pair("summons","furnace")){ say("\"I'm not burning a court summons,\" says Clive. \"They'll just send another one. On fire.\""); return 0; }
+  }
+  if(pair("earmuffs","cat")) return convinceCat();
+  if(pair("matches","candle")) return lightCandle();
+  if(pair("wateringcan","mandrake")) return water();
+  if(pair("chopstick","circle")){ say("You wave the wand at the circle. The circle is unmoved. It's a chopstick."); return 1; }
+  say("That doesn't do anything useful. Bold idea, though.");
+  return 0;
+}
+function use(a, b){
+  if(b) return combine(a, b);
+  const id=resolve(a);
+  if(!id) return 0;
+  const act=S.act;
+  switch(id){
+    case "salt": return S.room==="study" ? saltCircle() : (say("Use it on what? The circle is in the study."),0);
+    case "root": return S.room==="study" ? placeRoot() : (say("Use it on what? The circle is in the study."),0);
+    case "matches": case "candle": return lightCandle();
+    case "opener": case "tin": return openTin();
+    case "earmuffs": return (act===3 && here("cat")) ? convinceCat() : wear();
+    case "spellbook": return act===2 ? openSpellbook() : readSpell();
+    case "portalbook": return readPortal();
+    case "bestiary": return readBestiary();
+    case "note": return readNote();
+    case "mandrake": return pullMandrake();
+    case "wateringcan": return water();
+    case "chopstick": say("You wave the wand dramatically. Nothing happens. It's a chopstick. You knew it was a chopstick."); return 1;
+    case "armchair": return sit();
+    case "mirror": return (act===4 && has("contract")) ? triplicate() : talk(a);
+    case "cat": case "mother": case "pip": case "judge": return talk(a);
+    case "drawer": case "pantry": case "fridge": case "medcab": return openThing(a);
+    case "fudge": return baitKettle();
+    case "kettle": return S.f.pipInKettle ? closeKettle() : (act===2 && S.room==="cellar") ? sendKettle() : (say("Bait it, set it down, and wait. That's the bestiary's whole plan."),0);
+    case "lanyard": say(describe("lanyard")); return 0;
+    case "teapot": return here("mother") ? serveTea() : S.room==="cellar" ? cliveBrew() : (say("Leaves, then hot water, then her. In that order."),0);
+    case "saucepan": return S.f.panHot ? pourWater() : boilWater();
+    case "rug": return coverCircle();
+    case "quill": case "paper": return writeAgreement();
+    case "contract": return S.f.hearing ? hearingPresent("contract") : readContract();
+    case "summons": return readSummons();
+    case "safe": say(S.f.safeOpen?"It's open.":"It wants a name. Not yours."); return 0;
+    case "portrait": return act===4 ? behindPortrait() : (say("It's a portrait. You look at it. It looks at you. It wins."),0);
+    case "furnace": return act===2 && isVisible("kettle") ? sendKettle() : act===3 && isVisible("teapot") ? cliveBrew() : talk(a);
+    case "stove": if(act===3) return boilWater(); say("You light the stove, stare at it, and turn it off. You don't have time for tea."); return 1;
+    case "ladder": say(act===3&&!S.f.catConvinced?"You climb halfway up. Bartholomew backs further into the shelf. \"Not without terms,\" he says. \"Or ear protection.\"":"You climb the ladder, look around, and climb down again. That was the whole experience."); return 1;
+    case "circle": say("You've used the circle quite enough for one weekend."); return 0;
+    case "jar": say("You could eat one. You really, really shouldn't."); return 0;
+    case "tub": say("This is not the time for a bath. The newt agrees."); return 0;
+  }
+  say("You're not sure how to use that. Neither am I.");
+  return 0;
+}
+
+/* ================= act flow ================= */
+const INTROS = {
+  1:"It's 22:00 on Friday. You agreed to house-sit for a wizard named Mordrath the Unyielding while he's away at a conference. The job was simple: feed the cat, water a plant, don't touch anything.\n\nAbout an hour ago you ate his cheese, put your coffee mug down somewhere in the study, and went to find more cheese. Since then the study floor has started glowing, and a polite voice keeps asking about a midnight appointment.\n\nYou have two hours. You have no magical training. You have a mug.",
+  2:"Saturday, 16:00. You wake up in the armchair with a crick in your neck and chalk on your face. You slept through most of Saturday, which honestly feels earned.\n\nThen you notice the circle. Overnight someone has been adding to it: neat new chalk lines, a second ring half drawn, tiny footprints leading away. From somewhere in the house comes the sound of a very small creature humming the theme tune of a quiz show.\n\nBartholomew appears in the doorway. \"Something came through last night before you shut it,\" he says. \"An imp. He says he's an intern. He's redrawing the circle so his boss can come back at sundown.\" He turns to go. \"I don't do vermin with a job title. Deal with it.\"",
+  3:"Sunday, 11:00. The doorbell rings. The front door, which has spent the entire weekend refusing to let you out, swings open by itself for the small woman on the step.\n\nShe's wearing a hat with an entire pheasant on it. She looks at you, then past you, then at a speck of dust on the coat rack, in that order.\n\n\"I'm Gerald's mother,\" she says, walking straight past you. \"Mordrath, he calls himself. I'll be in the kitchen. I'd like some tea.\" She has already gone.\n\nGerald's mother. The one person the instructions specifically said not to ask. You have a salt line in the study, no kettle, and a cat who has vanished.",
+  4:"Monday, 08:00. Gerald gets home at half nine. The house is almost back to normal: the circle is under a rug, the imp is in the infernal postal system, and the cat is wearing your earmuffs, which he refuses to discuss.\n\nThen you open the envelope Mrs. Pennywhistle left. It's warm. It smells of sulfur. It's a court summons, and the hearing is at 09:00. Here."
+};
+function setupAct(n){
+  S.act=n; S.turn=0; S.score=0; S.over=false; S.retry=false;
+  S.room=startRoom(n); S.g.visited[S.room]=true;
+  S.items=itemsFor(n); S.f=flagsFor(n);
+  checkpoint=clone(S);
+}
+function actBanner(n){
+  say(ACTS[n].title, "act");
+  say(INTROS[n]);
+  if(n===1) say("Type HELP for commands or HINT if you get stuck. The buttons below handle the basics.", "sys");
+  look();
+}
+function completeAct(n, text, title){
+  say(text);
+  say(title, "ending");
+  S.g.actScores[n]=S.score;
+  S.total+=S.score; S.score=0;
+  say("Act "+ROMAN[n]+" complete · "+S.g.actScores[n]+" of 100 · running total "+S.total+" of 400", "pts");
+  if(n<4){ setupAct(n+1); actBanner(n+1); }
+}
+function completeAct1(){
+  const f=S.f; f.closed=true;
+  let t="You take a breath and say it, clearly, into the light.\n\n\"Gerald.\"\n\nThe circle flares, gulps, and goes out like a birthday candle. From very far away, a polite voice says \"Oh, come on,\" and then there's nothing at all. The mandrake root sits in the middle of an ordinary chalk circle, looking put out.\n\nBartholomew pads in, surveys the scene, and says: \"Adequate.\"\n\nIt is the nicest thing anyone has said to you all year.";
+  if(S.g.ateJar) t+="\n\nYou still don't know what was in that jar. Some questions are better left in the fridge, and you didn't leave it there.";
+  if(S.g.stunned) t+="\n\nYour ears should stop ringing by Wednesday.";
+  t+="\n\nAt some point after midnight you fall asleep in the armchair. You don't notice the small, chalk-dusted shape that climbs out from under it, straightens its tiny tie, and gets to work.";
+  award("name",15);
+  completeAct(1, t, "The Circle Is Closed · "+clock());
+  return 0;
+}
+function completeAct2(){
+  const t="Clive takes the kettle. There's a whoosh, a thin, indignant wail that fades up the flue, and then the gentle tick of a furnace that has done its job.\n\n\"Delivered,\" says Clive. \"Don't make a habit of it.\"\n\nUpstairs, the new chalk lines in the study have faded to grey dust. Bartholomew is waiting at the top of the cellar stairs. \"Gone?\" he asks. You nod. \"Good. Where's the kettle?\"\n\nYou realize the kettle is also gone. You decide that's a problem for Sunday.";
+  completeAct(2, t, "Return to Sender · "+clock());
+  return 0;
+}
+function completeAct3(){
+  const f=S.f; f.done=true;
+  const t="Bartholomew pads into the study wearing your pink earmuffs. Mrs. Pennywhistle scoops him up with a cry of delight and sings to him, a full aria, at close range. He endures it with his eyes shut and the earmuffs on: a cat who has made peace with his choices.\n\nAt the door she pauses and presses an envelope into your hands. \"This came to my house for Gerald,\" she says. \"They still have my address on file from when he was a boy. Make sure he gets it.\"\n\nThe envelope is warm. It smells faintly of sulfur. The front door closes behind her, and the runes go back to refusing to let you out.";
+  completeAct(3, t, "Mother Has Left the Building · "+clock());
+  return 0;
+}
+function completeAct4(){
+  const t="Bartholomew pushes the sardine agreement under the judge's nose with one paw. \"Household member,\" he says. \"Spare life. Paid in full.\"\n\nJudge Mabel reads it. Xal'thuun reads it, and his face does something complicated. \"A CAT'S life?\"\n\n\"It says soul-equivalent,\" says Bartholomew. \"Read your own fine print. Your firm drafted it.\"\n\nThe judge bangs a gavel that turns out to be a smaller toad. \"Paid in full. Case dismissed.\" Something small and bright floats out of Bartholomew, circles once, and drops into Xal'thuun's briefcase with a click. Bartholomew shrugs. \"Eight left. I'll pace myself.\"\n\nThe court folds up like a deckchair and is gone.\n\nAt 09:30 the front door opens. Mordrath the Unyielding, Gerald to his mother, steps into the foyer with a suitcase and a conference tote bag. He looks at the rug in the middle of the study. He looks at the pink earmuffs on his cat. He looks at the sardine agreement on his desk, stamped with a paw print, the seal of the Infernal Small Claims Court, and the words PAID IN FULL.\n\nHe looks at you for a very long time.\n\n\"How was the weekend?\" he asks.\n\n\"Quiet,\" you say.\n\nHe never asks you to house-sit again. He does, however, start sending you a Christmas card every year. It's signed Gerald.";
+  completeAct(4, t, "Paid in Full");
+  S.over=true;
+  say("THE END · Final score "+S.total+" of 400 · "+rank(S.total), "pts");
+  const parts=[1,2,3,4].map(n=>"Act "+ROMAN[n]+": "+S.g.actScores[n]+"/100").join("  ·  ");
+  say(parts, "sys");
+  say("Type RESTART to play again from Friday night.", "sys");
+  return 0;
+}
+function loss(title, text){
+  S.over=true; S.retry=true;
+  say(text);
+  say("ENDING: "+title, "ending");
+  say("Act "+ROMAN[S.act]+" score "+Math.max(0,S.score)+" of 100 · total "+total()+" of 400 · "+rank(total()), "pts");
+  say("Type RETRY to replay Act "+ROMAN[S.act]+" from its start, or RESTART to go back to Friday night.", "sys");
+}
+function doomAct1(){
+  loss("The Demon Stays for Tea", "Midnight.\n\nThe circle opens like a bad decision. Out steps a demon in a short-sleeved dress shirt and a clip-on tie, holding a clipboard. He has horns, hooves, and a lanyard.\n\n\"Xal'thuun,\" he says, extending a hand with too many knuckles. \"Accounts Receivable. Mordrath owes us one soul, plus late fees.\" He looks you up and down. \"You'll do.\"\n\nHe checks his clipboard. He checks you again. \"Actually, the paperwork for a substitution is a nightmare. Is that kettle on?\"\n\nHe's still there on Monday when the wizard comes home. They've been in the kitchen for six hours. Bartholomew has moved in with the neighbors.");
+}
+function doomAct2(){
+  loss("The Intern Gets Promoted", "Sundown.\n\nIn the study, Pip draws the last careful chalk line, steps back, and says \"Ta-da!\" to nobody. The new circle lights up. Xal'thuun steps out of it, brushing chalk off his tie, and shakes Pip's tiny hand. \"Excellent work. You're hired.\"\n\nThen he notices you. \"Oh good, you're still here. Is the kettle on?\" He looks around. \"Where IS the kettle?\"\n\nYou spend the rest of the weekend making tea in a saucepan for two demons. Pip gets a salary and dental. You get nothing.");
+}
+function lossAct3(){
+  loss("She Calls Gerald", "Mrs. Pennywhistle puts down her cup, takes a compact mirror out of her handbag, and says clearly into it: \"Gerald Pennywhistle.\"\n\nHis face appears in the glass, sunburned, wearing a conference lanyard. \"Mother? I'm in the middle of a keynote, I'm literally on stage...\"\n\n\"Your house-sitter,\" she says, looking straight at you, \"has some explaining to do.\"");
+}
+function doomAct3(){
+  loss("Mother Moves In", "13:00. Mrs. Pennywhistle announces, warmly, that since you're clearly struggling she'll stay for dinner. And the week. She has moved the furniture before you can object.\n\nOn Monday Gerald comes home to find his mother in his armchair, and he looks at you as if you've summoned something far worse than a demon. In fairness, you have.");
+}
+function lossAct4(title, text){ loss(title, text); }
+
+/* ================= time ================= */
+const VOICES = {
+  1:{10:["voice","From the study, a polite voice calls out of the circle: \"Hello? Is Mordrath in? I have an appointment at midnight.\""],
+     30:["voice","The voice from the circle again, carrying through the whole house: \"Just confirming midnight! I'll bring the paperwork.\""],
+     45:["warn","The circle's glow is now visible under every door in the house. Thirty minutes."],
+     55:["warn","\"Ten minutes!\" calls the voice, cheerfully. Something with far too many knuckles taps on the inside of the circle, like it's testing a window."]},
+  2:{15:["voice","From somewhere comes the sound of very small, very busy chalk."],
+     30:["voice","Bartholomew calls from the kitchen: \"The sun is going down. I'm only mentioning it.\""],
+     45:["warn","The light through the windows has gone orange. Sundown is close."],
+     55:["warn","From the study, a tiny voice: \"Almost done, boss!\""]},
+  3:{20:["voice","Mrs. Pennywhistle, from wherever she is: \"I'm not getting any younger, dear.\""],
+     40:["voice","You hear Mrs. Pennywhistle reorganizing the spice rack. She's found the one labeled DRAGON (DO NOT). She is doing."],
+     50:["warn","Mrs. Pennywhistle has mentioned staying for dinner twice now. Ten minutes until she decides."]},
+  4:{10:["voice","The front door's runes flicker. Somewhere a gavel is being polished."],
+     20:["warn","The study smells of sulfur and toner. Twenty minutes until the hearing."],
+     25:["warn","Ten minutes until the hearing."]}
+};
+function tick(n){
+  for(let i=0;i<n && !S.over;i++){
+    const act=S.act;
+    S.turn++;
+    if(act===4 && S.f.hearing) continue;
+    const v=VOICES[act][S.turn];
+    if(v && !(act===1&&S.f.closed) && !(act===2&&S.f.pipCaught)) say(v[1], v[0]);
+    if(act===2){
+      if(S.f.pipInKettle && ++S.f.eat<3){ if(S.f.eat===2) say("Pip is down to the last bite of fudge.", "warn"); }
+      else if(S.f.pipInKettle){
+        S.f.pipInKettle=false; S.f.kettleBaited=false;
+        say("Pip finishes the fudge, licks his fingers, and climbs out of the kettle. He gives you a little wave on the way out. You've been outplayed by an intern.", "warn");
+        movePip(true);
+      } else if(S.turn%2===0) movePip(false);
+    }
+    if(act===3 && S.f.stage===1){ S.f.finish--; if(S.f.finish<=0) momInspects(); if(S.over) return; }
+    if(S.act!==act) return;
+    if(S.turn>=A().doom && !(act===2 && S.f.pipCaught)){
+      if(act===1) doomAct1();
+      else if(act===2) doomAct2();
+      else if(act===3) doomAct3();
+      else if(act===4){ startHearing(); return; }
+      return;
+    }
+  }
+}
+
+/* ================= hints ================= */
+function hintText(){
+  const f=S.f;
+  if(S.act===1){
+    if(!f.mugMoved) return "Start with the circle in the study. Something of yours is sitting where it shouldn't be.";
+    if(!f.knowsRitual) return f.readSpell ? "The missing page is in the library, inside PORTALS: A CAUTIONARY TALE. READ it." : "The wizard's spellbook is on the study desk. READ SPELLBOOK.";
+    if(!f.saltDone){
+      if(!has("salt")){
+        if(!has("candle")) return "The salt is in the cellar, and the cellar is dark. There's a candle in the library.";
+        if(!has("matches")) return "You need fire. Kitchen drawers are where matches go to be forgotten.";
+        if(!f.candleLit) return "LIGHT CANDLE, then head down to the cellar, south of the kitchen.";
+        return "Go down to the cellar and TAKE SALT.";
+      }
+      return "In the study, POUR SALT ON CIRCLE.";
+    }
+    if(!f.rootPlaced){
+      if(!has("root")) return !f.wearing ? (has("earmuffs") ? "WEAR EARMUFFS before you go near that mandrake." : "Mandrakes scream. The coat rack in the foyer has something for your ears.") : "In the greenhouse, PULL MANDRAKE.";
+      return "In the study, PUT ROOT IN CIRCLE.";
+    }
+    if(!f.knowsName){
+      if(!has("tin")) return "Bartholomew knows the name and wants dinner. The pantry has sardines.";
+      if(!f.tinOpen) return has("opener") ? "OPEN TIN." : "The tin needs an opener. Check the kitchen drawer.";
+      return "In the kitchen, FEED CAT.";
+    }
+    return "Stand in the study and SAY GERALD.";
+  }
+  if(S.act===2){
+    if(!f.readBestiary) return "Know your imp. There's a bestiary in the library. READ BESTIARY.";
+    if(!f.pipCaught){
+      if(f.pipInKettle) return "He's in the kettle. CLOSE KETTLE, right now.";
+      if(!f.fudgeFound) return "Imps can't resist sweets. The wizard's spellbook in the study feels suspiciously light. OPEN SPELLBOOK.";
+      if(!f.kettleBaited && !has("kettle") && S.items.kettle==="kitchen") return "You need an iron vessel. The kettle in the kitchen is cast iron. TAKE KETTLE.";
+      if(!f.kettleBaited) return has("fudge") ? "PUT FUDGE IN KETTLE." : "You're out of fudge. Sundown is going to be awkward.";
+      if(has("kettle")) return "DROP KETTLE somewhere, then WAIT in the same room. Pip can smell fudge through walls.";
+      return S.room===S.items.kettle ? "WAIT here. When Pip climbs in, CLOSE KETTLE." : "Go back to the kettle and WAIT beside it. If he arrives while you're away, he'll just eat the bait.";
+    }
+    if(!f.readLanyard) return "Clive in the furnace will need a return address. Pip left something in the bathroom. EXAMINE it.";
+    if(!f.cliveAsk){
+      if(!f.candleLit) return "The cellar's dark again. LIGHT CANDLE, carry the kettle down, and PUT KETTLE IN FURNACE.";
+      return "Take the kettle to the cellar and PUT KETTLE IN FURNACE.";
+    }
+    return "Tell Clive the address from the lanyard: SAY ACCOUNTS RECEIVABLE.";
+  }
+  if(S.act===3){
+    let h;
+    if(f.stage===0){
+      if(!has("teapot")) h="She wants tea. The good teapot and the tea are in the pantry. TAKE TEAPOT and TAKE TEA. Leave the other tin alone.";
+      else if(!f.leaves) h="PUT TEA IN TEAPOT. The tin marked TEA, not the one marked NOT TEA.";
+      else if(!f.brewed && f.panHot) h="POUR WATER IN TEAPOT. Or, for a better cup, take the teapot to the cellar and PUT TEAPOT IN FURNACE.";
+      else if(!f.brewed) h="You need boiling water and the kettle is in Hell. A saucepan from the kitchen drawer works, but she'll notice. The furnace has a tenant who might help: PUT TEAPOT IN FURNACE.";
+      else h="Take the teapot to Mrs. Pennywhistle and SERVE TEA.";
+    } else if(f.stage===1){
+      h = !f.rugOnCircle ? (has("rug")?"Hurry to the study and PUT RUG ON CIRCLE before she finishes her cup.":"She'll want to see the study when her cup is done. Hide the circle. The foyer has a rug.") : !f.catConvinced ? "She'll want Bartholomew next. He's hiding at the top of the library ladder." : "Everything's ready. WAIT for her to finish her tea.";
+    } else {
+      h = !f.catConvinced ? (has("earmuffs") ? "In the library, GIVE EARMUFFS TO CAT." : "Bartholomew is on the top shelf in the library and won't come down without ear protection. You know where some earmuffs hang.") : "Bring Bartholomew to her.";
+    }
+    if(!f.complimented && f.stage>0) h+=" Also, she seems like someone who'd enjoy a compliment about her hat.";
+    return h;
+  }
+  if(f.hearing){
+    if(f.hstage===1) return "PRESENT CONTRACT. It has to be in triplicate.";
+    if(f.catSigned) return "CALL CAT.";
+    if(f.agreement && has("paper")) return "CALL CAT, then GIVE PAPER TO CAT.";
+    return "You need Bartholomew's signed agreement. If you have the quill and paper, WRITE, then CALL CAT and GIVE PAPER TO CAT.";
+  }
+  if(!f.readSummons) return "READ SUMMONS.";
+  if(!f.safeFound) return "The contract is somewhere in this house. The portrait in the study is hanging crooked. LOOK BEHIND PORTRAIT.";
+  if(!f.safeOpen) return "The safe wants its owner's true name. You know it. SAY it.";
+  if(!has("contract")) return "TAKE CONTRACT.";
+  if(!f.readContract) return "READ CONTRACT. Look for a loophole.";
+  if(!f.triplicate) return "You need three copies and there's no copier. The bathroom mirror is very good at reflections. SHOW CONTRACT TO MIRROR.";
+  if(!f.agreement) return "The cat has spare lives and wants terms in writing. Take the quill and paper from the study desk and WRITE.";
+  if(!f.catSigned) return "Bartholomew is in the kitchen. GIVE PAPER TO CAT.";
+  return "You're ready. Wait in the study for the hearing at 09:00. WAIT FOR HEARING skips ahead.";
+}
+function hint(){ say("Hint: "+hintText(), "sys"); return 0; }
+
+/* ================= meta ================= */
+function help(){
+  say("Speak to the house in short commands:");
+  say("LOOK (L)                  describe where you are\nEXAMINE thing (X)         look closely; READ works too\nTAKE / DROP thing\nINVENTORY (I)\nN  S  E  W                 move\nOPEN / CLOSE thing\nUSE thing\nUSE thing ON thing        also PUT thing IN thing, GIVE thing TO someone\nTALK TO someone\nSAY something\nWAIT (Z)\nMAP  HINT  SCORE  SAVE  RESTORE  RETRY  RESTART", "code");
+  say("Looking, examining, and meta commands are free. Everything else costs two minutes. Each act has its own deadline. Four acts, 100 points each.", "sys");
+  return 0;
+}
+function score(){
+  const prev=[1,2,3].filter(n=>S.g.actScores[n]!==undefined).map(n=>"Act "+ROMAN[n]+" "+S.g.actScores[n]);
+  say("Act "+ROMAN[S.act]+": "+Math.max(0,S.score)+" of 100 so far. Total: "+total()+" of 400."+(prev.length?" ("+prev.join(", ")+")":"")+" It's "+A().day+" "+clock()+". Current standing: "+rank(total())+".");
+  return 0;
+}
+function showMap(){
+  const W=12;
+  const nm=(id,label)=> S.g.visited[id] ? (S.room===id?"["+label+"]":label) : "?????";
+  const c=t=>{ const p=Math.max(0,W-t.length), l=Math.floor(p/2); return " ".repeat(l)+t+" ".repeat(p-l); };
+  const gap="    ", link=" -- ";
+  const rows=[
+    c("")+gap+c(nm("library","LIBRARY")),
+    c("")+gap+c("|"),
+    c(nm("greenhouse","GREENHOUSE"))+link+c(nm("study","STUDY"))+link+c(nm("kitchen","KITCHEN")),
+    c("")+gap+c("|")+gap+c("|"),
+    c(nm("bathroom","BATHROOM"))+link+c(nm("foyer","FOYER"))+gap+c(nm("cellar","CELLAR"))
+  ];
+  say(rows.map(r=>r.replace(/\s+$/,"")).join("\n"), "map");
+  say("Brackets mark where you are. Question marks are rooms you haven't been brave enough to visit.", "sys");
+  return 0;
+}
+function save(){
+  try{ localStorage.setItem(SAVE_KEY, JSON.stringify({S, checkpoint})); say("Game saved in this browser.", "sys"); }
+  catch(e){ say("Couldn't save. This browser is blocking storage for this page.", "sys"); }
+  return 0;
+}
+function restore(){
+  let raw=null;
+  try{ raw=localStorage.getItem(SAVE_KEY); }catch(e){ raw=null; }
+  if(!raw){ say("No saved game found in this browser.", "sys"); return 0; }
+  try{ const d=JSON.parse(raw); S=d.S; checkpoint=d.checkpoint; }catch(e){ say("That save is corrupted. Much like the circle was.", "sys"); return 0; }
+  say("Saved game restored. "+ACTS[S.act].title+", "+A().day+" "+clock()+".", "sys");
+  look();
+  return 0;
+}
+function retry(){
+  if(!checkpoint){ say("There's nothing to retry yet.", "sys"); return; }
+  S=clone(checkpoint);
+  say("Rewinding to the start of "+ACTS[S.act].title+".", "sys");
+  actBanner(S.act);
+}
+
+/* ================= parser ================= */
+const HUH = ["I don't know that verb. Neither, I suspect, do you.","That's not something you can do here. I checked.","Bold. Incomprehensible, but bold.","The house doesn't understand you. Join the club.","Try saying that again, but as a sentence a person would type."];
+function dispatch(s){
+  let m;
+  const f=S.f, act=S.act;
+  if(/^(help|\?|commands|h)$/.test(s)) return help();
+  if(/^(hint|hints|stuck|clue)$/.test(s)) return hint();
+  if(/^(score|points)$/.test(s)) return score();
+  if(/^(map|m)$/.test(s)) return showMap();
+  if(s==="save") return save();
+  if(/^(restore|load)$/.test(s)) return restore();
+  if(/^(restart|new game|reset|start over)$/.test(s)){ newGame(); return 0; }
+  if(/^(retry|retry act|replay)$/.test(s)){ retry(); return 0; }
+  if(/^(i|inv|inventory|items|pockets)$/.test(s)) return inventory();
+  if(/^(l|look|look around|where am i)$/.test(s)){ look(); return 0; }
+  if(/^wait\s+(?:for|until|till)\s+(?:hearing|court|9|09:00|nine)/.test(s) && act===4 && !f.hearing){ say("You sit down and wait for your court date, the way nobody ever should."); return A().doom - S.turn; }
+  if(/^(wait|z|idle)(\s+(for\s+.+|here|around))?$/.test(s)){ say(act===1?"You wait. The circle doesn't.":act===2?"You wait, very still, trying to look like furniture.":act===3?"You wait. Somewhere, Mrs. Pennywhistle is finding dust.":"You wait. Time passes at its usual legal rate."); return 1; }
+  if(/^(x|examine|read|take|get|open|use|drop|say)$/.test(s)){ say(cap(s)+" what?"); return 0; }
+
+  // hearing mode
+  if(act===4 && f.hearing){
+    if((m=s.match(/^(?:present|file|submit|show|hand|give|offer|enter|produce|exhibit)\s+(.+?)(?:\s+to\s+.+)?$/))){
+      if(/^(me|myself|my soul|self)$/.test(m[1])) return proBono();
+      return hearingPresent(m[1]);
+    }
+    if((m=s.match(/^(?:call|summon|bring|fetch|nominate|name)\s+(.+)$/))) return hearingCall(m[1]);
+    if(/^(object|objection)/.test(s)){ say("\"Overruled,\" croaks Judge Mabel. \"You haven't said anything yet.\""); return 0; }
+    if(/^(plead|argue|appeal|beg)/.test(s)){ say("\"The court doesn't want speeches,\" croaks the judge. \""+(f.hstage===1?"It wants the CONTRACT.":"It wants to know WHO PAYS.")+"\""); return 0; }
+  }
+
+  // easter eggs
+  if(s==="xyzzy"||s==="plugh"){ say("A hollow voice says: \"Wrong house.\""); return 0; }
+  if(/^(sleep|nap|rest|lie down)\b/.test(s)){ say("Absolutely not. You'd wake up to a demon making toast."); return 0; }
+  if(/\b(fuck|shit|damn|hell|crap|bloody)\b/.test(s) && !(act===2 && f.cliveAsk && S.room==="cellar")){ say("The portrait looks scandalized. It has heard worse. It has said worse."); return 0; }
+  if(/^(pray)\b/.test(s)){ say("In this house? Bold."); return 0; }
+  if(/^(dance)\b/.test(s)){ say("You do a small, joyless dance. The portrait's eyes follow you, which they were doing already."); return 1; }
+  if(/^(cast|spell|magic|enchant|conjure)\b/.test(s)){ say("You wiggle your fingers and say something vaguely Latin. You are not a wizard. You are a person who used a summoning circle as a coaster."); return 0; }
+  if(/^(phone|text)\b/.test(s)){ say("Your phone has no signal. The wards eat it. You do have 4% battery, which feels symbolic."); return 0; }
+  if(/^(kick|punch|hit|smash|break|attack|throw)\b/.test(s)){ say("Violence won't help. Also, everything in this house is either cursed or expensive."); return 0; }
+  if(/^(win|cheat|god mode|iddqd)$/.test(s)){ say("That's not how wizardry works. Or games."); return 0; }
+  if(/^(gerald|say gerald|shout gerald|speak gerald|state gerald)$/.test(s)) return speakName();
+
+  // movement
+  if((m=s.match(/^(?:go |walk |head |run |move |travel )?(n|north|s|south|e|east|w|west)$/))) return go(m[1][0]);
+  if(/^(?:go |walk |head )?(d|down|downstairs)$/.test(s)){ if(S.room==="kitchen") return go("s"); say("There's no down from here, except emotionally."); return 0; }
+  if(/^(?:go |walk |head )?(u|up|upstairs)$/.test(s)){ if(S.room==="cellar") return go("n"); say("There's no upstairs. The wizard keeps saying he'll add one."); return 0; }
+  if(/^(out|leave|exit|back|go back|go out|outside|escape)$/.test(s)) return leave();
+  if((m=s.match(/^(?:go|walk|head|run|enter|travel)\s+(?:to\s+|into\s+|in\s+|down to\s+)?(.+)$/))) return goTo(m[1]);
+
+  // looking
+  if((m=s.match(/^(?:look|check|search|peek|peer)\s+behind\s+(.+)$/))){
+    const id=resolve(m[1]); if(!id) return 0;
+    if(id==="portrait") return behindPortrait();
+    say("Nothing behind it but more house."); return 0;
+  }
+  if((m=s.match(/^(?:move|lift|swing|tilt|straighten|adjust)\s+(?:portrait|painting|picture)$/))) return behindPortrait();
+  if((m=s.match(/^(?:look|check|search|peek)\s+(?:under|beneath|below|underneath)\s+(.+)$/))){
+    const id=resolve(m[1]); if(!id) return 0;
+    if(id==="mug" && act===1) return take("mug");
+    if(id==="rug" && act===3){ say("Under the rug: the circle. That's the point."); return 0; }
+    if(id==="armchair"){ say("Under the armchair: a sock, two buttons, and a tiny skeleton of something you decide was a mouse."+(act===2?" Also chalk dust. A lot of chalk dust.":"")); return 0; }
+    if(id==="desk"){ say("More papers. The wizard has never thrown anything away, including, possibly, a previous house-sitter."); return 0; }
+    say("Nothing interesting under there."); return 0;
+  }
+  if((m=s.match(/^(?:look|check|peek)\s+(?:in|inside|into)\s+(.+)$/)) || (m=s.match(/^(?:search|rummage)\s+(?:through\s+|in\s+)?(.+)$/))){
+    const id=resolve(m[1]); if(!id) return 0;
+    if(id==="spellbook" && act===2) return openSpellbook();
+    if(["drawer","pantry","fridge","medcab"].indexOf(id)>=0 && (id==="medcab" || !containerOpen(id))) return openThing(m[1]);
+    say(describe(id)); return 0;
+  }
+  if((m=s.match(/^read\s+(.+)$/))) return examine(m[1], true);
+  if((m=s.match(/^(?:x|examine|inspect|look at|check|describe|study|view|look|l|check out|observe)\s+(.+)$/))) return examine(m[1]);
+
+  // speech
+  if((m=s.match(/^(?:say|speak|shout|whisper|yell|chant|intone|utter|announce|call out|state|tell clive|tell furnace)\s+(.+)$/))){
+    const arg=m[1].replace(/["']/g,"").trim();
+    if(arg.indexOf(NAME)>=0) return speakName();
+    if(act===2 && f.cliveAsk && S.room==="cellar") return sayAddress(arg);
+    if(/mordrath/.test(arg)){ say(act===4&&S.room==="study"&&f.safeFound&&!f.safeOpen?"You say \"Mordrath.\" The safe makes a noise like a scoff. That's his stage name.":"You say \"Mordrath.\" Nothing happens. That's his stage name."); return 1; }
+    if(/(please|sorry)/.test(arg)){ say("You apologize to the room. The room does not accept."); return 1; }
+    if(/(abracadabra|alakazam|hocus|open sesame|expelliarmus|bibbidi)/.test(arg)){ say("You say \""+arg+"\" with feeling. Nothing happens, which is a fair review."); return 1; }
+    say("You say \""+arg+"\" out loud. Nothing happens. The portrait seems to sigh.");
+    return 1;
+  }
+  if(act===2 && f.cliveAsk && S.room==="cellar" && /(accounts receivable|seventh circle|7th circle)/.test(s)) return sayAddress(s);
+
+  // act I verbs
+  if(/^(?:feed|give food to)\s+(?:cat|bartholomew|him|kitty|barty)/.test(s) || /^feed$/.test(s)) return feedCat();
+  if(/^(?:wear|put on|don)\s+/.test(s) || /^put\s+(?:earmuffs|muffs|ear muffs)\s+on$/.test(s)) return wear();
+  if(/^(?:remove|take off|doff)\s+(?:earmuffs|muffs|ear muffs)$/.test(s)) return unwear();
+  if((m=s.match(/^(?:pull|uproot|yank|pluck|harvest|dig up|pick)\s+(?:up\s+)?(.+)$/)) && /(mandrake|root|plant|pot)/.test(m[1])) return pullMandrake();
+  if(/^(?:water|irrigate)\b/.test(s)) return water();
+  if(/^(?:light|ignite|burn)\s+(?:candle|wick|taper)/.test(s) || /^strike\s+(?:match|matches)/.test(s)) return lightCandle();
+  if(/^(?:blow out|extinguish|snuff|douse|put out|pinch out)\s*(?:candle|flame|light)?$/.test(s)) return douse();
+  if(/^(?:fix|repair|mend|seal|restore|complete)\s+(?:circle|gap|ring|portal)$/.test(s)){
+    if(act!==1){ say("The circle is fine. It's everything else that's broken."); return 0; }
+    if(has("salt")) return saltCircle();
+    if(f.saltDone && has("root")) return placeRoot();
+    if(f.saltDone && f.rootPlaced){ say("All that's left is the name."); return 0; }
+    say("You'll need more than good intentions. Read the instructions. There are always instructions.");
+    return 0;
+  }
+  if(/salt/.test(s) && /^(?:pour|sprinkle|spread|scatter|salt)\b/.test(s) && act===1) return saltCircle();
+  if(/^(?:plant|place|set|put)\s+(?:root|mandrake root|mandrake)\b/.test(s) && S.room==="study" && act===1) return placeRoot();
+  if(/^(?:sit|sit down|sit in|sit on|relax)\b/.test(s)) return sit();
+  if((m=s.match(/^(?:wave|flick|swish)\s+(.+)$/))){ const id=resolve(m[1]); if(!id) return 0; if(id==="chopstick"){ say("Swish and flick. Nothing. It is, and has always been, a chopstick."); return 1; } say("You wave it around. Nothing happens. Anyone watching is embarrassed for you."); return 1; }
+  if(/^open\s+(?:tin|sardines|tin of sardines)(?:\s+with\s+.+)?$/.test(s) && act===1) return openTin();
+  if(/^(?:scoop|get|grab|take)\s+salt/.test(s)) return take("salt");
+
+  // act II verbs
+  if(act===2){
+    if(/^(?:catch|grab|seize|nab|trap|get|take|chase|pounce on)\s+(?:pip|imp|intern)/.test(s)) return grabPip();
+    if(/^(?:close|shut|cover|clamp|slam|lid)\s*(?:kettle|lid|kettle lid|trap)?$/.test(s) || /^put\s+lid\s+on/.test(s)) return closeKettle();
+    if(/^(?:bait|load)\s+(?:kettle|trap)/.test(s)) return baitKettle();
+    if(/^(?:set|place|put down|lay|put)\s+(?:kettle|trap)(?:\s+down)?$/.test(s)) return drop("kettle");
+    if(/^(?:send|mail|post|forward|ship)\s+/.test(s)) return sendKettle();
+  }
+  // act III verbs
+  if(act===3){
+    if(/^(?:compliment|flatter|praise|admire)\b/.test(s)) return compliment();
+    if(/^(?:tell|confess|explain|admit)\b/.test(s) && here("mother") && /(portal|demon|imp|circle|summon|everything|truth|kettle|hell)/.test(s)){
+      loss("Full Disclosure","You tell her everything: the coaster, the circle, the demon, the intern, the kettle, the furnace. She listens without interrupting. Then she opens her handbag, takes out a compact mirror, and says very calmly into it: \"Gerald Pennywhistle.\"\n\nHonesty, it turns out, is the best policy for everyone except you.");
+      return 0;
+    }
+    if(/^(?:boil|heat)\s+(?:water|saucepan|pan)/.test(s)) return boilWater();
+    if(/^(?:make|brew)\s+(?:tea|pot of tea|cup of tea|cuppa)/.test(s)){
+      if(!f.leaves){ say("Tea leaves in the teapot first. PUT TEA IN TEAPOT."); return 0; }
+      if(!f.brewed){ if(S.room==="cellar") return cliveBrew(); if(f.panHot) return pourWater(); say("You need boiling water, and the kettle is in Hell. Saucepan, or someone with a talent for fire."); return 0; }
+      say("It's brewed. SERVE TEA."); return 0;
+    }
+    if(/^(?:serve|offer)\s+(?:tea|teapot|cup|her)/.test(s) || /^pour\s+(?:tea|cup)/.test(s) || /^serve$/.test(s)) return serveTea();
+    if(/^pour\s+(?:water|saucepan|pan|boiling water)/.test(s)) return pourWater();
+    if(/^(?:cover|hide|conceal|disguise)\s+(?:circle|evidence|floor|salt|chalk|it)/.test(s)) return coverCircle();
+    if(/^(?:climb|climb up|ascend)\b/.test(s) && S.room==="library") return use("ladder");
+  }
+  // act IV verbs
+  if(act===4){
+    if(/^(?:write|draft|compose|scribble|draw up)\b/.test(s)) return writeAgreement();
+    if(/^(?:copy|duplicate|photocopy|reproduce)\s+/.test(s)){ if(S.room==="bathroom" && has("contract")) return triplicate(); say("There's no copier in a wizard's house. There is a mirror that thinks very highly of its reflections, in the bathroom."); return 0; }
+    if(/^(?:sign)\b/.test(s)){ say("It's not your soul on the line. Well. Not yet. It's the cat's signature you need."); return 0; }
+    if((m=s.match(/^(?:call|summon|fetch)\s+(.+)$/))) return hearingCall(m[1]);
+  }
+
+  // generic
+  if((m=s.match(/^(?:take|get|grab|pick up|pickup|steal|collect|snag|lift)\s+(.+?)(?:\s+(?:from|out of|off)\s+.+)?$/))) return take(m[1]);
+  if((m=s.match(/^(?:drop|discard|put down|throw away|toss)\s+(.+)$/))) return drop(m[1]);
+  if((m=s.match(/^(?:open|unlock)\s+(.+)$/))) return openThing(m[1]);
+  if((m=s.match(/^(?:close|shut)\s+(.+)$/))) return closeThing(m[1]);
+  if((m=s.match(/^(?:eat|consume|devour|bite|taste|lick)\s+(.+)$/))) return eat(m[1]);
+  if((m=s.match(/^(?:drink|sip)\s*(.*)$/))){ say(act===3&&isVisible("teapot")&&f.brewed?"That's her tea. Touch it and die.":has("mug")?"Your mug is empty. That's how all this started: you put it down to go refill it.":"There's nothing to drink that isn't labeled with a skull."); return 0; }
+  if((m=s.match(/^(?:talk|talk to|speak to|speak with|ask|hello|hi|hey|greet|chat with|tell|question|wake|wake up|pet|stroke)\b\s*(.*)$/))){
+    if(/^(pet|stroke)/.test(s) && here("cat")){ say("You reach out to pet Bartholomew. He allows it for exactly one stroke, then looks at your hand like it owes him money."); return 1; }
+    return talk(m[1]);
+  }
+  if((m=s.match(/^(?:give|offer|hand|show|present)\s+(.+?)\s+to\s+(.+)$/))) return combine(m[1], m[2]);
+  if((m=s.match(/^(?:put|insert|place|load|stick|set|pour|sprinkle|spread|lay)\s+(.+?)\s+(?:in|into|inside|on|onto|in to|at|over|across)\s+(.+)$/))) return combine(m[1], m[2]);
+  if((m=s.match(/^(?:hold|hold up)\s+(.+?)\s+(?:to|up to|in front of)\s+(.+)$/))) return combine(m[1], m[2]);
+  if((m=s.match(/^(?:use|apply|operate)\s+(.+?)(?:\s+(?:on|with|in|into|at)\s+(.+))?$/))) return use(m[1], m[2]);
+  if((m=s.match(/^(?:turn|switch)\s+(?:on|off)\s+(.+)$/))){ say("Nothing in this house has a switch. That's the whole aesthetic."); return 0; }
+
+  say(HUH[f.huh++ % HUH.length]+" Type HELP for the basics.", "sys");
+  return 0;
+}
+
+function clean(raw){
+  return raw.toLowerCase()
+    .replace(/[^a-z0-9!:'\- ]/g," ")
+    .replace(/\b(the|an|some|my|your|please|that|this)\b/g," ")
+    .replace(/(^|\s)a(?=\s)/g," ")
+    .replace(/\s+/g," ")
+    .trim();
+}
+function handle(raw){
+  const s=clean(raw);
+  if(!s) return;
+  say("> "+raw.trim(), "echo");
+  if(S.over){
+    if(/^(restart|new game|play again|reset|start over)$/.test(s)){ newGame(); render(); return; }
+    if(S.retry && /^(retry|again|r|yes|y|replay|retry act)$/.test(s)){ retry(); render(); return; }
+    if(/^(restore|load)$/.test(s)){ restore(); render(); return; }
+    if(/^(score|points)$/.test(s)){ say("Final total: "+total()+" of 400 · "+rank(total()), "sys"); render(); return; }
+    say(S.retry ? "This act is over. Type RETRY to replay it, RESTART to go back to Friday, or RESTORE to load a save." : "That's the end. Type RESTART to play again.", "sys");
+    render(); return;
+  }
+  const r=dispatch(s);
+  if(typeof r==="number" && r>0 && !S.over) tick(r);
+  render();
+}
+function newGame(){
+  S={act:1, room:"study", turn:0, score:0, total:0, over:false, retry:false, items:{}, f:{}, g:{visited:{}, ateJar:false, stunned:false, watered:false, actScores:{}}};
+  buffer=[];
+  if(HAS_DOM){ const log=document.getElementById("log"); if(log) log.textContent=""; }
+  say("THE WIZARD IS OUT", "title");
+  say("A text adventure in four acts of poor house-sitting.", "sub");
+  setupAct(1);
+  actBanner(1);
+}
+
+/* ================= UI ================= */
+function status(){
+  if(!HAS_DOM) return;
+  const set=(id,v,cls)=>{ const el=document.getElementById(id); el.textContent=v; el.className=cls||""; };
+  const f=S.f, act=S.act;
+  set("st-act", ROMAN[act]);
+  set("st-loc", isDark() ? "Cellar (dark)" : ROOMS[S.room].name.replace(/^The /,""));
+  set("st-time", A().day+" "+clock());
+  set("st-score", total()+"/400");
+  let o="", oc="";
+  if(act===1){ if(f.closed){o="Circle closed";oc="good";} else if(f.saltDone&&f.rootPlaced){o="Say the name";oc="good";} else if(f.saltDone){o="Circle mended";} else {o="Circle broken";oc="hot";} }
+  if(act===2){ if(f.sent){o="Imp returned";oc="good";} else if(f.pipCaught){o="Imp in kettle";oc="good";} else if(f.pipInKettle){o="CLOSE KETTLE";oc="hot";} else if(f.kettleBaited){o="Trap baited";} else {o="Imp loose";oc="hot";} }
+  if(act===3){ o = f.done ? "She's gone" : f.stage===0 ? "Make tea" : f.stage===1 ? (f.rugOnCircle?"Find the cat":"Hide the circle") : "Fetch Barty"; oc = f.done?"good":(f.stage===1&&!f.rugOnCircle?"hot":""); }
+  if(act===4){ if(f.hearing){ o = "Strikes "+f.strikes+"/3"; oc = f.strikes>=2?"hot":""; } else { const done=[f.triplicate, f.catSigned].filter(Boolean).length; o="Prep "+done+"/2"; oc=done===2?"good":""; } }
+  set("st-obj", o, oc);
+  document.getElementById("st-meter-label").textContent = A().meter;
+  const el=document.getElementById("st-meter");
+  el.innerHTML="";
+  let n=10, on=0, hot=false, label="";
+  if(act===3){ n=3; on=f.susp; hot=f.susp>=2; label="Suspicion "+f.susp+" of 3"; }
+  else if(act===1){ const p=f.closed?0:pct(); on=Math.ceil(p*10); hot=p>=.7; label="Portal "+Math.round(p*100)+" percent open"; }
+  else if(act===2){ const p=f.sent?0:pct(); on=Math.ceil(p*10); hot=p>=.7; label="Second circle "+Math.round(p*100)+" percent drawn"; }
+  else { const p=f.hearing?1:pct(); on=Math.ceil(p*10); hot=p>=.7; label=f.hearing?"Hearing in session":"Hearing in "+((A().doom-S.turn)*2)+" minutes"; }
+  for(let i=0;i<n;i++){ const seg=document.createElement("i"); if(i<on) seg.className="on"; el.appendChild(seg); }
+  el.className="meter"+(n===3?" wide":"")+(hot?" hot":"");
+  el.setAttribute("aria-label", label);
+}
+function render(){
+  if(!HAS_DOM) return;
+  const log=document.getElementById("log");
+  let first=null;
+  for(const l of buffer){
+    const d=document.createElement("div");
+    d.className="line"+(l.cls?" "+l.cls:"");
+    d.textContent=l.t;
+    log.appendChild(d);
+    if(!first) first=d;
+  }
+  buffer=[];
+  while(log.children.length>900) log.removeChild(log.firstChild);
+  if(first){
+    const tall = log.scrollHeight - first.offsetTop > log.clientHeight;
+    log.scrollTop = tall ? Math.max(0, first.offsetTop-12) : log.scrollHeight;
+  }
+  status();
+}
+function start(data){
+  if(data && data.S && data.S.g){ S=data.S; checkpoint=data.checkpoint||clone(S); buffer=[]; say("Session resumed. "+ACTS[S.act].title+", "+A().day+" "+clock()+".", "sys"); look(); }
+  else newGame();
+  render();
+}
+
+if(HAS_DOM){
+  const form=document.getElementById("cmd");
+  const input=document.getElementById("cmd-input");
+  const hist=[]; let hi=0;
+  form.addEventListener("submit", e=>{
+    e.preventDefault();
+    const v=input.value;
+    if(!v.trim()) return;
+    hist.push(v); hi=hist.length;
+    input.value="";
+    handle(v);
+  });
+  input.addEventListener("keydown", e=>{
+    if(e.key==="ArrowUp"){ if(hi>0){ hi--; input.value=hist[hi]; e.preventDefault(); } }
+    else if(e.key==="ArrowDown"){ if(hi<hist.length-1){ hi++; input.value=hist[hi]; } else { hi=hist.length; input.value=""; } e.preventDefault(); }
+  });
+  document.querySelectorAll(".chips button").forEach(b=>{
+    b.addEventListener("click", ()=>{
+      handle(b.dataset.cmd);
+      if(window.matchMedia && window.matchMedia("(pointer:fine)").matches) input.focus();
+    });
+  });
+  try{ window.claude && window.claude.hot && window.claude.hot.snapshot && window.claude.hot.snapshot(()=>({S, checkpoint})); }catch(e){}
+  const hot=window.claude && window.claude.hot;
+  if(hot && hot.ready) hot.ready(start); else start(hot && hot.data ? hot.data : {});
+  if(window.matchMedia && window.matchMedia("(pointer:fine)").matches) input.focus();
+} else {
+  globalThis.__game={ handle, newGame, state:()=>S, out:()=>{ const b=buffer; buffer=[]; return b; } };
+}
+})();
+</script>
+
+</body>
+</html>
